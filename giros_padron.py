@@ -3,66 +3,27 @@ import smtplib
 from datetime import datetime
 from email.message import EmailMessage
 
+import zeep
+from requests import Session
+from zeep.transports import Transport
 from conn.DBConnection import DBConnection as DBConnection
 from giros_authenticate import GiroAuthenticate as GiroAuthenticate
-"""
-def persistirPadronEnGiro(datos, cliente):
-    print(":: MODULO PADRON :: PERSISTIR USUARIOS ::")
-    u =0
-    for cliente, cuenta, clave, nombreApellido,tipoDocumento,nroDocumento, mail,telefono, saldo,  saldoGeneral, saldoDif, saldoUss,saldoGeneralDolar, saldoDiferidoDolar, fecha, marcaCambio, tipoUsuario in datos:
 
-        cursor = conn.gestagro.conn.cursor()
-        cursor.execute("select * from usuarios where coope= "+str(cliente)+" and cuenta ="+str(cuenta)+" and marca_cambio > 0 ")
-        resu = cursor.fetchone()
 
-        if resu == None:
-           try:
-               cursor.execute(
-                   "insert into usuarios(coope,  cuenta,clave, nombre, tipoDocumento, nroDocumento, mail, telefono, saldo, saldoGral, saldoDif, saldoDolar, saldoGralDolar, saldoDifDolar, fecha, marca_cambio, tipoUsuario,  ultActualizacion) values('" + cliente + "', '" + cuenta + "', MD5('" + clave + "'), '" + nombreApellido + "',  '" + str(
-                       tipoDocumento) + "' , '" + str(nroDocumento) + "', '" + mail + "',  '" + str(
-                       telefono) + "', '" + str(saldo) + "', '" + str(saldoGeneral) + "', '" + str(
-                       saldoDif) + "', '" + str(saldoUss) + "', '" + str(saldoGeneralDolar) + "', '" + str(
-                       saldoDiferidoDolar) + "', '" + str(fecha) + "', '" + str(marcaCambio) + "', '" + str(
-                       tipoUsuario) + "', now() )")
-               conn.gestagro.conn.commit()
-               print("Socio " + str(cuenta) + " - " + str(nombreApellido) + " agregado !!! - Saldo: "+str(saldo))
-           except Exception as e:
-               print(f"Error al ejecutar la consulta: {e}")
-               enviarMail("Modulo Usuarios, se ha producido un error al agregar un usuario: " + str(e))
-               conn.gestagro.conn.commit()
-               conn.gestagro.conn.commit()
-               cursorControl = conn.gestagro.conn.cursor()
 
-               cursorControl.execute(
-                   "INSERT INTO gestAgroProcesosLogs(coope, resultado, estado, descripcion, origen, fecha, control) VALUES('" + str(
-                       cliente) + "', '" + str("usuarios") + "', '" + "ERROR" + "', '" + str(
-                       str(e)) + "' , '" + str("api:gestagroSincro") + "', NOW(), NOW());")
-
-        else:
-            cursor.execute("update usuarios set saldo = '"+str(saldo)+"', saldoGral = '"+str(saldoGeneral)+"', saldoDif = '"+str(saldoDif)+"', saldoDolar = '"+str(saldoUss)+"', saldoGralDolar= '"+str(saldoGeneralDolar)+"', saldoDifDolar= '"+str(saldoDiferidoDolar)+"', fecha= '"+str(fecha)+"' , ultActualizacion = now(), nombre= '"+str(nombreApellido)+"' where coope = '"+cliente+"' and cuenta = '"+cuenta+"'")
-            conn.gestagro.conn.commit()
-            print("Socio "+str(cuenta)+" - "+str(nombreApellido)+" actualizado !! - Saldo: "+str(saldo))
-
-        u = u+1
-
-    cursorControl = conn.gestagro.conn.cursor()
-    cursorControl.execute(
-        "INSERT INTO gestAgroProcesosLogs(coope, resultado, estado, descripcion, origen, fecha, control) VALUES('" + str(
-            cliente) + "', '" + str("usuarios") + "', '"+ str("OK")+"','" +
-         str("Usuarios Procesados :: " + str(u)) + "' , '" + str(
-            "api:gestagroSincro") + "', NOW(), NOW());")
-
-"""
 
 
 class GirosPadron(DBConnection):
     def __init__(self):
         super().__init__()
 
-    hoy = datetime.now()
-    maskCuenta = "0000000"
-    datosPadron = []
-    datosPadronParaGiro = []
+        self.config = []
+        self.resp = []
+        self.client = self._create_soap_client_farm()
+        self.hoy = datetime.now()
+        self.maskCuenta = "0000000"
+        self.datosPadron = []
+        self.datosPadronParaGiro = []
 
     def tomarDatosPadronSybase(self, codigo, plantaCodigo):
 
@@ -127,12 +88,25 @@ class GirosPadron(DBConnection):
         for padron in datosPadron:
             nombreApellido = padron[1]
             print(nombreApellido)
-            aca en datosPadronParaGiro le preparo los datos masticados para enviar a giro
+            #aca en datosPadronParaGiro le preparo los datos masticados para enviar a giro
             # datosPadronParaGiro.append([cliente, cuenta, clave, nombreApellido,1,0, mail,0, saldo,  saldoGeneral, saldoDif, saldoUss,saldoGeneralDolar, saldoDiferidoDolar, str(fechaHoy), marcaCambio, 3])
             # datosNuevos = datosPadronNuevos
 
             # persistirUsuarios(datos_nuevos, cliente)
 
+
+    def _create_soap_client_farm(self):
+
+        cursor = self.conn.cursor()
+        sql = "SELECT valor from giro_parametros where grupo = 'login' and nombreParametro in ('url_farm')"
+        cursor.execute(sql)
+        item = cursor.fetchall()
+        for urlFarm in item[0]:
+            url_login = urlFarm
+        session = Session()
+        session.verify = False  # Disable SSL certificate verification
+        transport = Transport(session=session)
+        return zeep.Client(wsdl=url_login, transport=transport)
 
 
     def enviarMail(self, mensaje):
@@ -158,7 +132,56 @@ class GirosPadron(DBConnection):
             smtp.send_message(msg)
             # print(":: CORREO ENVIADO CON EXITO :: ")
 
+    def persistirPadronEnGiro(self, padronParaGiro, cliente, tokenGiro):
+        breakpoint()
 
+
+
+        '''
+         u =0
+        for cliente, cuenta, clave, nombreApellido,tipoDocumento,nroDocumento, mail,telefono, saldo,  saldoGeneral, saldoDif, saldoUss,saldoGeneralDolar, saldoDiferidoDolar, fecha, marcaCambio, tipoUsuario in datos:
+
+            cursor = conn.gestagro.conn.cursor()
+            cursor.execute("select * from usuarios where coope= "+str(cliente)+" and cuenta ="+str(cuenta)+" and marca_cambio > 0 ")
+            resu = cursor.fetchone()
+
+            if resu == None:
+               try:
+                   cursor.execute(
+                       "insert into usuarios(coope,  cuenta,clave, nombre, tipoDocumento, nroDocumento, mail, telefono, saldo, saldoGral, saldoDif, saldoDolar, saldoGralDolar, saldoDifDolar, fecha, marca_cambio, tipoUsuario,  ultActualizacion) values('" + cliente + "', '" + cuenta + "', MD5('" + clave + "'), '" + nombreApellido + "',  '" + str(
+                           tipoDocumento) + "' , '" + str(nroDocumento) + "', '" + mail + "',  '" + str(
+                           telefono) + "', '" + str(saldo) + "', '" + str(saldoGeneral) + "', '" + str(
+                           saldoDif) + "', '" + str(saldoUss) + "', '" + str(saldoGeneralDolar) + "', '" + str(
+                           saldoDiferidoDolar) + "', '" + str(fecha) + "', '" + str(marcaCambio) + "', '" + str(
+                           tipoUsuario) + "', now() )")
+                   conn.gestagro.conn.commit()
+                   print("Socio " + str(cuenta) + " - " + str(nombreApellido) + " agregado !!! - Saldo: "+str(saldo))
+               except Exception as e:
+                   print(f"Error al ejecutar la consulta: {e}")
+                   enviarMail("Modulo Usuarios, se ha producido un error al agregar un usuario: " + str(e))
+                   conn.gestagro.conn.commit()
+                   conn.gestagro.conn.commit()
+                   cursorControl = conn.gestagro.conn.cursor()
+
+                   cursorControl.execute(
+                       "INSERT INTO gestAgroProcesosLogs(coope, resultado, estado, descripcion, origen, fecha, control) VALUES('" + str(
+                           cliente) + "', '" + str("usuarios") + "', '" + "ERROR" + "', '" + str(
+                           str(e)) + "' , '" + str("api:gestagroSincro") + "', NOW(), NOW());")
+
+            else:
+                cursor.execute("update usuarios set saldo = '"+str(saldo)+"', saldoGral = '"+str(saldoGeneral)+"', saldoDif = '"+str(saldoDif)+"', saldoDolar = '"+str(saldoUss)+"', saldoGralDolar= '"+str(saldoGeneralDolar)+"', saldoDifDolar= '"+str(saldoDiferidoDolar)+"', fecha= '"+str(fecha)+"' , ultActualizacion = now(), nombre= '"+str(nombreApellido)+"' where coope = '"+cliente+"' and cuenta = '"+cuenta+"'")
+                conn.gestagro.conn.commit()
+                print("Socio "+str(cuenta)+" - "+str(nombreApellido)+" actualizado !! - Saldo: "+str(saldo))
+
+            u = u+1
+
+        cursorControl = conn.gestagro.conn.cursor()
+        cursorControl.execute(
+            "INSERT INTO gestAgroProcesosLogs(coope, resultado, estado, descripcion, origen, fecha, control) VALUES('" + str(
+                cliente) + "', '" + str("usuarios") + "', '"+ str("OK")+"','" +
+             str("Usuarios Procesados :: " + str(u)) + "' , '" + str(
+                "api:gestagroSincro") + "', NOW(), NOW());")
+    '''
     def main(self):
         #import conn.sybase
         print(":: VALIDANDO TOKEN DE ACCESO :: ")
@@ -190,18 +213,17 @@ class GirosPadron(DBConnection):
 
                 giroAuth = GiroAuthenticate()
                 for giro in giroAuth.resp:
-                    breakpoint()
+
                     tokenGiro = giro.get("userToken")
                     respLoginGiroSucceeded = giro.get("LoginSucceeded")
                     respLoginGiroResultCode = giro.get("resultCode")
                     respLoginTokenMode = giro.get("status")
-                    breakpoint()
                     if respLoginGiroSucceeded == 'true' and respLoginGiroResultCode == "600":
                         print(":: TOKEN GIRO ES VALIDO: "+tokenGiro+" :: "+str(respLoginTokenMode)+" ::")
 
                         self.tomarDatosPadronSybase(0, plantaCodigo)
-
                         self.procesarDatosPadronSybase(self.datosPadron, cli)
+                        self.persistirPadronEnGiro(self, self.datosPadronParaGiro, cli, tokenGiro )
                     else:
                         # Usuario o clave de giros incorrectos
                         return False
@@ -213,6 +235,7 @@ class GirosPadron(DBConnection):
                 self.conn.close()
             else:
                 print(":: ERROR :: TOKEN DE ACCESO INVÁLIDO. (consulte con el administrador del sistema)")
+
 
 if __name__ == "__main__":
     giros_padron = GirosPadron()

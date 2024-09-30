@@ -33,7 +33,7 @@ class GiroAuthenticate(DBConnection):
     def verificoSiHayTokenVigenteSybase(self):
 
         cursor = self.conn.cursor()
-        sql = "SELECT idAcceso, domain, token, tokenTipo, fechaCreacion,  fechaDesde, fechaHasta fechaHasta FROM giro_accesos where '"+self.fechaHoraHoy+"' >= fechaDesde and '"+self.fechaHoraHoy+"' <= fechaHasta"
+        sql = "SELECT idAcceso, domain, token, tokenTipo, fechaCreacion,  fechaDesde, fechaHasta fechaHasta FROM giro_accesos where idAcceso = 1"
         cursor.execute(sql)
         token = cursor.fetchall()
         if len(token) >  0:
@@ -47,7 +47,7 @@ class GiroAuthenticate(DBConnection):
                 fechaDesde = row.fechaDesde
                 fechaHasta = row.fechaHasta
                 tokenStatus = True
-                status = "REUTILIZA TOKEN: "
+                status = "."
                 self.resp.append({'userToken': tokenUsuario,
                                   'resultCode': '600',
                                   'LoginSucceeded': 'true',
@@ -56,12 +56,16 @@ class GiroAuthenticate(DBConnection):
                                   'fechaDesde': fechaDesde,
                                   'fechaHasta': fechaHasta,
                                   'status': status + tokenUsuario})
-                print(":: REUTILIZO TOKEN VIGENTE :: "+str(tokenUsuario))
-            return self.resp
+
+            print(":: TOKEN :: "+str(tokenUsuario))
+            tokenGiroStatus = self.verificoSiHayTokenVigenteEnGiro(self, tokenUsuario)
+            if tokenGiroStatus == True:
+                return self.resp
+            else:
+                return self.pedirTokenAcceso(self, 1)
 
         else:
             print(":: NO HAY TOKEN VIGENTE, SE DEBE SOLICITAR UNO NUEVO A GIROS ::")
-
             return False
 
 
@@ -101,16 +105,32 @@ class GiroAuthenticate(DBConnection):
                     'userName': str(usu),
                     'userPwd': str(cla),
                 }
+            return params
 
-                #config.append([ url,usu, +cla, dom,pack])
-                 # Define the parameters for the SOAP request+
+    def verificoSiHayTokenVigenteEnGiro(self, tokenGiro):
+        print(":: MODULO PADRON :: PERSISTIR USUARIOS ::")
+        # Valido token primero, armo parametros para enviar para consultar token
+        paramsToken = {
+            'token': tokenGiro,
+
+        }
+        tokenResp = self.client.service.ValidarToken(**paramsToken)
+        if tokenResp['LoginSucceeded'] == 'true':
+            print("Token vigente, continuo con el proceso")
+        else:
+            print("Token invalido o vencido, solicito nuevo token")
 
 
-                return params
+
+    def pedirTokenAcceso(self, op):
+        # op = 0 verifica token,
+        # op = 1 renueva token
+        if op == 0:
+            tokenVigente  = self.verificoSiHayTokenVigenteSybase()
+        else:
+            tokenVigente = False
 
 
-    def pedirTokenAcceso(self):
-        tokenVigente  = self.verificoSiHayTokenVigenteSybase()
         if tokenVigente == False:
             #traigo los parmetreos de la tabla para setear los parametros
             parametros = self.configuracion()
@@ -136,33 +156,28 @@ class GiroAuthenticate(DBConnection):
                     login_date = root.find('LoginDate').text
                     domain = root.find('Domains/Domain').text
 
-
-
-
-
-                    #self.resp.append([user_token, result_code, login_succeeded, login_date, domain, 'Nuevo Token otorgado '+user_token])
-                    fechaLogin = datetime.fromisoformat(login_date[:-6])
-                    fechaLogin_str = fechaLogin.strftime('%Y-%m-%d %H:%M:%S')
+                    #fechaLogin = datetime.fromisoformat(login_date[:-6])
+                    #fechaLogin_str = fechaLogin.strftime('%Y-%m-%d %H:%M:%S')
                     fechaActual = datetime.now()
                     # Definir un timedelta con las horas que quieres sumar
-                    horasAsumar = fechaActual + timedelta(hours=6)
-                    fechaLogin_str_hasta =  horasAsumar
+                    #orasAsumar = fechaActual + timedelta(hours=6)
+                    #fechaLogin_str_hasta =  horasAsumar
                     self.resp.append({'userToken': user_token,
                                       'resultCode': result_code,
                                       'LoginSucceeded': login_succeeded,
                                       'loginDate': login_date,
                                       'domain': domain,
                                       'fechaDesde': login_date,
-                                      'fechaHasta': fechaLogin_str_hasta,
+                                      'fechaHasta': login_date,
                                       'status': 'Nuevo Token otorgado ' + user_token})
                     cursor = self.conn.cursor()
-                    sql = "insert into giro_accesos ( domain, token, fechaCreacion, fechaDesde, fechaHasta, tokenTipo) values ('" + str(domain) + "', '" + str(user_token) + "', '" + str(datetime.now()) + "', '" + str(fechaLogin_str) + "', '" + str(fechaLogin_str_hasta) + "', '" + str('md5') + "')"
+                    sql= "update giro_accesos set domain = " + str(domain) + " , token = " + str(user_token) + " , fechaCreacion = " + str(datetime.now()) + " , fechaDesde = " + str(fechaLogin_str) + " , fechaHasta = " + str(fechaLogin_str_hasta) + " , tokenTipo = " + str('md5') + " where idAcceso = 1"
                     cursor.execute(sql)
                     self.conn.commit()
                     if cursor.rowcount > 0:
-                        print(":: Gestion de Token Giro: Registro insertado correctamente. ::")
+                        print(":: Gestion de Token Giro: Registro actualizado correctamente. ::")
                     else:
-                        print(":: Gestion de Token Giro: No se insertó ningún token. ::")
+                        print(":: Gestion de Token Giro: No se actualizó ningún token. ::")
                     cursor.close()
 
 
@@ -173,7 +188,7 @@ class GiroAuthenticate(DBConnection):
 
         else:
             # REUTILIZO TOKEN EXISTENTE PORQUE EXISTE Y ESTA VIGENTE
-            print(":: pedirTokenAcceso() --> REUTILIZO TOKEN EXISTENTE ESTA VIGENTE -> ")
+            print(":: pedirTokenAcceso() --> REUTILIZO TOKEN EXISTENTE -> ")
 
 
             return tokenVigente
