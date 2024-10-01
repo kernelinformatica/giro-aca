@@ -34,16 +34,16 @@ class GirosPadron(DBConnection):
             cursor.execute(
                 "SELECT  padron_codigo, padron_apelli, padron_nombre, padron_domici, padron_domnro, padron_domdto, "
                 "padron_dompis, codigo_postal, padron_telcar, padron_telnro, padron_actanr, padron_ingres, "
-                "codigo_docu, padron_docnro, padron_ivacon, interes_tasa, padron_jncnro, padron_gananc, "
-                "padron_apinro, padron_zonnro, padron_catego, padron_jubila, padron_cuit11, padron_cuil11, "
-                "padron_busco1, padron_busco2, padron_observa FROM v_giro_ctacte_padron   order by padron_codigo asc")
+                "codigo_docu, padron_docnro, padron_ivacon, desc_cond_iva, interes_tasa, padron_jncnro, padron_gananc, "
+                "padron_apinro, padron_zonnro, padron_catego, catego_descri, padron_jubila, padron_cuit11, padron_cuil11, "
+                "padron_busco1, padron_busco2, padron_observa, provincia, localidad, provincia_codigo FROM v_giro_ctacte_padron   order by padron_codigo asc")
         else:
             cursor.execute(
                 "SELECT padron_codigo, padron_apelli, padron_nombre, padron_domici, padron_domnro, padron_domdto, "
                 "padron_dompis, codigo_postal, padron_telcar, padron_telnro, padron_actanr, padron_ingres, "
-                "codigo_docu, padron_docnro, padron_ivacon, interes_tasa, padron_jncnro, padron_gananc, "
-                "padron_apinro, padron_zonnro, padron_catego, padron_jubila, padron_cuit11, padron_cuil11, "
-                "padron_busco1, padron_busco2, padron_observa FROM v_giro_ctacte_padron where padron_codigo =  " + str(
+                "codigo_docu, padron_docnro, padron_ivacon, desc_cond_iva,  interes_tasa, padron_jncnro, padron_gananc, "
+                "padron_apinro, padron_zonnro, padron_catego, catego_descri, padron_jubila, padron_cuit11, padron_cuil11, "
+                "padron_busco1, padron_busco2, padron_observa, provincia, localidad, provincia_codigo FROM v_giro_ctacte_padron where padron_codigo =  " + str(
                     codigo) + " order by padron asc")
         socios = cursor.fetchall()
 
@@ -51,29 +51,33 @@ class GirosPadron(DBConnection):
             for a in socios:
                 padronCodigo = a.padron_codigo
                 padronNombreApellido = a.padron_apelli + " " + a.padron_nombre
-                padronDomicilio = a.padron_domici
-                padronDomicilioNro = a.padron_domnro
-                padronDomicilioDpto = a.padron_domdto
+                padronDomicilio = str(a.padron_domici)+" "+str(a.padron_domnro)+" "+str(a.padron_domdto)
                 padronCodigoPostal = a.codigo_postal
+                padronProvinciaNombre = a.provincia
+                padronProvinciaCodigo = a.provincia_codigo
+                padronLocalidadNombre = a.localidad
                 padronTelCar = a.padron_telcar
                 padronTelNro = a.padron_telnro
                 padronIngreso = a.padron_ingres
                 padronNroDocumento = a.padron_docnro
                 padronCondicionIva = a.padron_ivacon
+                padronCondicionIvaNombre = a.desc_cond_iva
                 padronJnrNro = a.padron_jncnro
                 padronGanancias = a.padron_gananc
                 padronApiNro = a.padron_apinro
                 padronZonaNro = a.padron_zonnro
                 padronCategoria = a.padron_catego
+                padronCategoriaNombre = a.catego_descri
                 padronJubilacion = a.padron_jubila
-                padronCuit11 = a.padron_cuit11
-                padronCuil11 = a.padron_cuil11
+                if  a.padron_cuit11 == None:
+                    padronCuit = a.padron_cuil11
+                else:
+                    padronCuit = a.padron_cuit11
                 padronObserva = a.padron_observa
-
-                self.datosPadron.append(
-                    [padronCodigo, padronNombreApellido, padronDomicilio, padronNroDocumento, padronCodigoPostal,
-                     padronCondicionIva, padronGanancias, padronApiNro, padronCategoria, padronJubilacion, padronCuit11,
-                     padronObserva])
+                # padronTipoCuenta: Giro define este valor como INTERNA = 1 o EXTERNA = 2
+                padronTipoCuenta = 1
+                self.datosPadronParaGiro.append(
+                    [padronNombreApellido, padronCondicionIva, padronCodigoPostal, padronCuit, padronDomicilio, padronLocalidadNombre, "ARGENTINA", padronProvinciaNombre, padronTipoCuenta])
 
             print(":: MODULO PADRON :: DATOS RECUPERADOS ::")
         # EJECUTO CLASE clases/padronGiro que implementa el web service con giro y le informa el padronIngreso
@@ -83,16 +87,8 @@ class GirosPadron(DBConnection):
         return self.datosPadron
 
 
-    def procesarDatosPadronSybase(self, datosPadron, cliente):
-        breakpoint()
-        for padron in datosPadron:
-            nombreApellido = padron[1]
-            print(nombreApellido)
-            #aca en datosPadronParaGiro le preparo los datos masticados para enviar a giro
-            # datosPadronParaGiro.append([cliente, cuenta, clave, nombreApellido,1,0, mail,0, saldo,  saldoGeneral, saldoDif, saldoUss,saldoGeneralDolar, saldoDiferidoDolar, str(fechaHoy), marcaCambio, 3])
-            # datosNuevos = datosPadronNuevos
 
-            # persistirUsuarios(datos_nuevos, cliente)
+
 
 
     def _create_soap_client_farm(self):
@@ -222,8 +218,7 @@ class GirosPadron(DBConnection):
                         print(":: TOKEN GIRO ES VALIDO: "+tokenGiro+" :: "+str(respLoginTokenMode)+" ::")
 
                         self.tomarDatosPadronSybase(0, plantaCodigo)
-                        self.procesarDatosPadronSybase(self.datosPadron, cli)
-                        self.persistirPadronEnGiro(self, self.datosPadronParaGiro, cli, tokenGiro )
+                        self.persistirPadronEnGiro(self.datosPadronParaGiro, cli, tokenGiro )
                     else:
                         # Usuario o clave de giros incorrectos
                         return False

@@ -19,16 +19,14 @@ class GiroAuthenticate(DBConnection):
 
     def __init__(self):
         super().__init__()
-        #self.conn = self.create_connection()
-
-
         self.config = []
         self.resp = []
-        self.client = self._create_soap_client()
+        self.client = self._create_soap_client_login()
+        self.clientFarm = self._create_soap_client_farm()
         fechaHoraHoyTemp = datetime.now()
         formatoFechaHoy = "%Y-%m-%d %H:%M:%S"
         self.fechaHoraHoy = fechaHoraHoyTemp.strftime(formatoFechaHoy)
-        self.pedirTokenAcceso()
+        self.pedirTokenAcceso(0)
 
     def verificoSiHayTokenVigenteSybase(self):
 
@@ -48,6 +46,13 @@ class GiroAuthenticate(DBConnection):
                 fechaHasta = row.fechaHasta
                 tokenStatus = True
                 status = "."
+
+
+            print(":: TOKEN :: "+str(tokenUsuario))
+
+            tokenGiroStatus = self.verificoSiHayTokenVigenteEnGiro(tokenUsuario)
+
+            if tokenGiroStatus == True:
                 self.resp.append({'userToken': tokenUsuario,
                                   'resultCode': '600',
                                   'LoginSucceeded': 'true',
@@ -56,33 +61,38 @@ class GiroAuthenticate(DBConnection):
                                   'fechaDesde': fechaDesde,
                                   'fechaHasta': fechaHasta,
                                   'status': status + tokenUsuario})
-
-            print(":: TOKEN :: "+str(tokenUsuario))
-            tokenGiroStatus = self.verificoSiHayTokenVigenteEnGiro(self, tokenUsuario)
-            if tokenGiroStatus == True:
                 return self.resp
             else:
-                return self.pedirTokenAcceso(self, 1)
+                return self.pedirTokenAcceso(1)
 
         else:
             print(":: NO HAY TOKEN VIGENTE, SE DEBE SOLICITAR UNO NUEVO A GIROS ::")
             return False
 
 
-    def _create_soap_client(self):
-        cursor = self.conn.cursor()
-        sql = "SELECT valor from giro_parametros where grupo = 'login' and nombreParametro in ('url_login')"
-        cursor.execute(sql)
-        item = cursor.fetchall()
-        for urlLogin in item[0]:
-            url_login = urlLogin
+    def _create_soap_client_login(self):
+       cursor = self.conn.cursor()
+       sql = "SELECT valor from giro_parametros where grupo = 'login' and nombreParametro in ('url_login')"
+       cursor.execute(sql)
+       item = cursor.fetchall()
+       for items in item[0]:
+           url = items
+       session = Session()
+       session.verify = False  # Disable SSL certificate verification
+       transport = Transport(session=session)
+       return zeep.Client(wsdl=url, transport=transport)
 
-
-        session = Session()
-        session.verify = False  # Disable SSL certificate verification
-        transport = Transport(session=session)
-        return zeep.Client(wsdl=url_login, transport=transport)
-
+    def _create_soap_client_farm(self):
+       cursor = self.conn.cursor()
+       sql = "SELECT valor from giro_parametros where grupo = 'login' and nombreParametro in ('url_farm')"
+       cursor.execute(sql)
+       item = cursor.fetchall()
+       for items in item[0]:
+           url = items
+       session = Session()
+       session.verify = False  # Disable SSL certificate verification
+       transport = Transport(session=session)
+       return zeep.Client(wsdl=url, transport=transport)
 
     def configuracion(self):
         cursor = self.conn.cursor()
@@ -108,16 +118,19 @@ class GiroAuthenticate(DBConnection):
             return params
 
     def verificoSiHayTokenVigenteEnGiro(self, tokenGiro):
-        print(":: MODULO PADRON :: PERSISTIR USUARIOS ::")
-        # Valido token primero, armo parametros para enviar para consultar token
+         # Valido token primero, armo parametros para enviar para consultar token
         paramsToken = {
-            'token': tokenGiro,
+            'Token': tokenGiro,
 
         }
-        tokenResp = self.client.service.ValidarToken(**paramsToken)
-        if tokenResp['LoginSucceeded'] == 'true':
-            print("Token vigente, continuo con el proceso")
+        self.clientFarm.transport.http_post = True  # Para usar POST
+        self.clientFarm.transport.http_get = False  # Para desactivar GET
+        tokenResp = self.clientFarm.service.ValidarToken(**paramsToken)
+        if tokenResp['CodigoError'] == 0:
+            print("El token utilizado es válido en giro.")
+            return True
         else:
+            return False
             print("Token invalido o vencido, solicito nuevo token")
 
 
@@ -156,12 +169,12 @@ class GiroAuthenticate(DBConnection):
                     login_date = root.find('LoginDate').text
                     domain = root.find('Domains/Domain').text
 
-                    #fechaLogin = datetime.fromisoformat(login_date[:-6])
-                    #fechaLogin_str = fechaLogin.strftime('%Y-%m-%d %H:%M:%S')
+                    fechaLogin = datetime.fromisoformat(login_date[:-6])
+                    fechaLogin_str = fechaLogin.strftime('%Y-%m-%d %H:%M:%S')
                     fechaActual = datetime.now()
                     # Definir un timedelta con las horas que quieres sumar
-                    #orasAsumar = fechaActual + timedelta(hours=6)
-                    #fechaLogin_str_hasta =  horasAsumar
+                    horasAsumar = fechaActual + timedelta(hours=6)
+                    fechaLogin_str_hasta =  horasAsumar
                     self.resp.append({'userToken': user_token,
                                       'resultCode': result_code,
                                       'LoginSucceeded': login_succeeded,
@@ -171,7 +184,9 @@ class GiroAuthenticate(DBConnection):
                                       'fechaHasta': login_date,
                                       'status': 'Nuevo Token otorgado ' + user_token})
                     cursor = self.conn.cursor()
-                    sql= "update giro_accesos set domain = " + str(domain) + " , token = " + str(user_token) + " , fechaCreacion = " + str(datetime.now()) + " , fechaDesde = " + str(fechaLogin_str) + " , fechaHasta = " + str(fechaLogin_str_hasta) + " , tokenTipo = " + str('md5') + " where idAcceso = 1"
+                    sql= "update giro_accesos set domain = '" + str(domain) + "' , token = '" + str(user_token) + "' , fechaCreacion = '" + str(datetime.now()) + "' , fechaDesde = '" +str(datetime.now()) + "' , fechaHasta = '" + str(datetime.now())+ "' , tokenTipo = '" + str('md5') + "' where idAcceso = 1"
+                    
+
                     cursor.execute(sql)
                     self.conn.commit()
                     if cursor.rowcount > 0:
