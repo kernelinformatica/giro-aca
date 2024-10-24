@@ -1,0 +1,79 @@
+CREATE TABLE "DBA"."giro_accesos" (
+	"idAcceso" integer NOT NULL DEFAULT autoincrement,
+	"domain" varchar(50) NULL,
+	"token" "text" NULL,
+	"fechaCreacion" varchar(100) NULL,
+	"fechaDesde" "datetime" NULL DEFAULT current timestamp,
+	"fechaHasta" "datetime" NULL DEFAULT current timestamp,
+	"tokenTipo" varchar(25) NULL,
+	PRIMARY KEY ( "idAcceso" )
+);
+CREATE TABLE "DBA"."giro_errores_codigos" (
+	"id" integer NOT NULL,
+	"error" varchar(150) NULL,
+	"tipo" varchar(10) NULL,
+	PRIMARY KEY ( "id" )
+);
+CREATE TABLE "DBA"."giro_errores_ws" (
+	"idError" integer NOT NULL DEFAULT autoincrement,
+	"errorCodigo" integer NULL,
+	"errorDescripcion" "text" NULL,
+	"nroTicket" decimal(15,0) NULL,
+	"nroCarta" decimal(15,0) NULL,
+	"fechaHora" "datetime" NULL,
+	"idOperacion" integer NULL,
+	"operacion" varchar(150) NULL,
+	"operador" varchar(50) NULL,
+	"borradoLogico" integer NULL DEFAULT 0,
+	"entradaSalida" varchar(3) NULL DEFAULT 'N',
+	"control" "datetime" NULL DEFAULT current timestamp,
+	PRIMARY KEY ( "idError" )
+);
+COMMENT ON COLUMN "DBA"."giro_errores_ws"."entradaSalida" IS 'E=entrada, S=salida,N=Ni entrada ni salida cuallquier otroerror';
+CREATE TABLE "DBA"."giro_operaciones" (
+	"id" integer NOT NULL DEFAULT autoincrement,
+	"operacion" varchar(250) NULL,
+	"descripcion" "text" NULL,
+	PRIMARY KEY ( "id" )
+);
+CREATE TABLE "DBA"."giro_parametros" (
+	"id" integer NOT NULL DEFAULT autoincrement UNIQUE,
+	"grupo" varchar(50) NULL,
+	"nombreParametro" varchar(50) NULL,
+	"descripcion" varchar(250) NULL,
+	"valor" "text" NULL,
+	"tipoValor" varchar(1) NULL DEFAULT 'S',
+	PRIMARY KEY ( "id" )
+);
+COMMENT ON COLUMN "DBA"."giro_parametros"."tipoValor" IS 'S=string, N=NUMERO, D=decimal';
+CREATE TABLE "DBA"."giro_respuesta_ws" (
+	"id" integer NOT NULL DEFAULT autoincrement,
+	"codigo" integer NULL,
+	"respuesta" "text" NULL,
+	"nroTicket" decimal(15,0) NULL,
+	"nroCarta" decimal(15,0) NULL,
+	"fechaHora" "datetime" NULL,
+	"idOperacion" integer NULL,
+	"operacion" varchar(150) NULL,
+	"operador" varchar(50) NULL,
+	"borradoLogico" integer NULL DEFAULT 0,
+	"entradaSalida" varchar(3) NULL DEFAULT 'N',
+	"control" "datetime" NULL DEFAULT current timestamp,
+	PRIMARY KEY ( "id" )
+);
+COMMENT ON COLUMN "DBA"."giro_respuesta_ws"."entradaSalida" IS 'E=entrada, S=salida,N=Ni entrada ni salida cuallquier otroerror';
+
+
+
+# DATOS : MChasisCreate, MAcopladoCreate
+# Chasis y acoplados:
+CREATE VIEW "DBA"."v_giro_transportes" /* view_column_name, ... */
+  //Chasis y acoplados
+  as select tte_codigo,cam_codigo as camion_codigo,chasis_pat as chasis_patente,
+    chasis_prov as chasis_provincia,acopl_pat as acoplado_patente,acopl_prov as acoplado_provincia,chofer,tipo_doc,nro_doc as cuit from
+    DBA.cereal_camiones where habil = 1 and nro_doc > 0;
+
+
+
+
+Choferes: SELECT * FROM cereal_transportes

@@ -16,7 +16,7 @@ from giros_authenticate import GiroAuthenticate as GiroAuthenticate
 class GirosPadron(DBConnection):
     def __init__(self):
         super().__init__()
-
+        self.tokenGiro = "";
         self.config = []
         self.resp = []
         self.client = self._create_soap_client_farm()
@@ -105,31 +105,9 @@ class GirosPadron(DBConnection):
         return zeep.Client(wsdl=url_login, transport=transport)
 
 
-    def enviarMail(self, mensaje):
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT emp_descri, emp_descri1 FROM empresas where emp_codigo = 1")
-        empresa = cursor.fetchone()
-        nombreEmpresa = empresa[0]
-        enviaEmail = "no-reply@kernelinformatica.com.ar"
-        recibeEmail = "sistemas@kernelinformatica.com.ar"
-        email_subject = ':: Kernel Sincronización con Giros :: ' + nombreEmpresa
-        mensajeFull = (mensaje)
-        sender_email_address = enviaEmail
-        receiver_email_address = recibeEmail
-        msg = EmailMessage()
-        msg.set_content(mensajeFull)
-        msg['Subject'] = email_subject
-        msg['From'] = sender_email_address
-        msg['To'] = receiver_email_address
 
-        with smtplib.SMTP("mail.kernelinformatica.com.ar", 587) as smtp:
-            smtp.starttls()
-            smtp.login(sender_email_address, 'Humb3rt01')
-            smtp.send_message(msg)
-            # print(":: CORREO ENVIADO CON EXITO :: ")
+    def persistirPadronEnGiro(self, padronParaGiro, cliente):
 
-    def persistirPadronEnGiro(self, padronParaGiro, cliente, tokenGiro):
-        breakpoint()
 
 
 
@@ -210,15 +188,15 @@ class GirosPadron(DBConnection):
                 giroAuth = GiroAuthenticate()
                 for giro in giroAuth.resp:
 
-                    tokenGiro = giro.get("userToken")
                     respLoginGiroSucceeded = giro.get("LoginSucceeded")
                     respLoginGiroResultCode = giro.get("resultCode")
                     respLoginTokenMode = giro.get("status")
                     if respLoginGiroSucceeded == 'true' and respLoginGiroResultCode == "600":
-                        print(":: TOKEN GIRO ES VALIDO: "+tokenGiro+" :: "+str(respLoginTokenMode)+" ::")
 
+                        self.tokenGiro = GiroAuthenticate.traerTokenGiro(self)
+                        print(":: TOKEN GIRO ES VALIDO: " + self.tokenGiro + " :: " + str(respLoginTokenMode) + " :: "+self.tokenGiro)
                         self.tomarDatosPadronSybase(0, plantaCodigo)
-                        self.persistirPadronEnGiro(self.datosPadronParaGiro, cli, tokenGiro )
+                        self.persistirPadronEnGiro(self.datosPadronParaGiro, cli)
                     else:
                         # Usuario o clave de giros incorrectos
                         return False
@@ -226,7 +204,7 @@ class GirosPadron(DBConnection):
 
 
                 #print(":: TODOS LOS PROCESOS FUERON COMPLETADOS ::")
-                self.enviarMail(":: KERNEL SINCRO CON GIROS :: EXPORTACION DE PADRON A GIROS ::")
+
                 self.conn.close()
             else:
                 print(":: ERROR :: TOKEN DE ACCESO INVÁLIDO. (consulte con el administrador del sistema)")

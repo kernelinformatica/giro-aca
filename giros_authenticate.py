@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 # Suppress only the single InsecureRequestWarning from urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import requests
+import errores
+import respuestas
 
 
 
@@ -69,6 +71,15 @@ class GiroAuthenticate(DBConnection):
             print(":: NO HAY TOKEN VIGENTE, SE DEBE SOLICITAR UNO NUEVO A GIROS ::")
             return False
 
+    def traerTokenGiro(self):
+        cursor = self.conn.cursor()
+        sql = "SELECT token FROM giro_accesos where idAcceso = 1"
+        cursor.execute(sql)
+        item = cursor.fetchall()
+        for items in item[0]:
+            tok = items
+        return tok
+
 
     def _create_soap_client_login(self):
        cursor = self.conn.cursor()
@@ -84,7 +95,7 @@ class GiroAuthenticate(DBConnection):
 
     def _create_soap_client_farm(self):
        cursor = self.conn.cursor()
-       sql = "SELECT valor from giro_parametros where grupo = 'login' and nombreParametro in ('url_farm')"
+       sql = "SELECT valor from giro_parametros where grupo = 'farm' and nombreParametro in ('url_farm')"
        cursor.execute(sql)
        item = cursor.fetchall()
        for items in item[0]:
@@ -161,9 +172,15 @@ class GiroAuthenticate(DBConnection):
                 print(":: Giro Web Service SessionManager.LoginServiceWithPackDirect() :: "+str(login_succeeded))
                 if login_succeeded == "false":
                     print(":: LA autentificacion falló, usuario o clave incorrectos ::")
+                    codigoError = root.find('ResultCode').text
+                    descripcionError =login_succeeded
+                    nroTicket = 0
+                    nroCarta = 0
+                    '''
+                     resp = respuestas.GrabaRespuestas()
+                    resp.grabarRespuesta(codigoError, descripcionError, 0, 0, 2, "ValidarToken",".", 'N', 0, "Usuario o clave incorrectos", "ERROR")
 
-                    self.resp.append([0, result_code, login_succeeded, 0, 0, 'error'])
-
+                    '''
                 else:
                     user_token = root.find('UserToken').text
                     login_date = root.find('LoginDate').text
@@ -217,7 +234,6 @@ if __name__ == "__main__":
 
     client = GiroAuthenticate()
 
-    # data = client.pedirTokenAcceso()
 
 
 
