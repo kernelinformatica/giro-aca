@@ -13,7 +13,7 @@ from giros_authenticate import GiroAuthenticate as GiroAuthenticate
 
 
 
-class GiroTransporteChasis(DBConnection):
+class GiroTransporteAcoplado(DBConnection):
     def __init__(self):
         super().__init__()
         self.tokenGiro = ""
@@ -25,18 +25,18 @@ class GiroTransporteChasis(DBConnection):
         self.datos = []
         self.datosParaGiro = []
 
-    def tomarDatosChasisSybase(self):
+    def tomarDatosAcopladosSybase(self):
 
-        print(":: MODULO TRANSPORTE CHASIS :: Aguarde un momento por favor ...")
+        print(":: MODULO TRANSPORTE ACOPLADO :: Aguarde un momento por favor ...")
         global datos
         cursor = self.conn.cursor()
-        cursor.execute( "select tte_codigo, camion_codigo,chasis_patente, chasis_provincia, acoplado_patente, acoplado_provincia,chofer,tipo_doc, cuit, seguro, seg_chasis_vto from v_giro_transportes where tte_codigo between 1 and 15")
+        cursor.execute( "select tte_codigo, camion_codigo,chasis_patente, chasis_provincia, acoplado_patente, acoplado_provincia,chofer,tipo_doc, cuit, seguro, seg_chasis_vto from v_giro_transportes where tte_codigo between 1 and 5")
         items = cursor.fetchall()
 
         if len(items) > 0:
             for item in items:
                 camion = item.camion_codigo
-                chasisPatente = item.chasis_patente
+                acoplado_patente = item.acoplado_patente
                 chasisProvincia = item.chasis_provincia,
                 chofer = item.chofer
                 tipoDocumento = item.tipo_doc
@@ -46,13 +46,12 @@ class GiroTransporteChasis(DBConnection):
                 tara = 1
                 #
                 seguroPoliza = item.seguro
-                seguroPolizaVence = item.seg_chasis_vto
                 vencCCar = ""
                 detalle =""
                 dnt = ""
-                self.datosParaGiro.append([chasisPatente, seguroPoliza, tara, vencCCar, seguroPolizaVence, detalle, dnt])
+                self.datosParaGiro.append([acoplado_patente, seguroPoliza, tara,  detalle, dnt])
 
-            print(":: MODULO TRANSPORTE CHASIS :: PREPARADOS PARA ENVIAR A GIRO ::")
+            print(":: MODULO TRANSPORTE ACOPLADO :: PREPARADOS PARA ENVIAR A GIRO ::")
             self.persistirEnGiro(self.datosParaGiro)
            # EJECUTO CLASE clases/padronGiro que implementa el web service con giro y le informa el padronIngreso
 
@@ -68,7 +67,7 @@ class GiroTransporteChasis(DBConnection):
     def _create_soap_client_farm(self):
 
         cursor = self.conn.cursor()
-        sql = "SELECT valor from giro_parametros where grupo = 'farm' and nombreParametro in ('url_farm_chasis')"
+        sql = "SELECT valor from giro_parametros where grupo = 'farm' and nombreParametro in ('url_farm_acoplado')"
         cursor.execute(sql)
         item = cursor.fetchall()
         for urlFarm in item[0]:
@@ -86,21 +85,14 @@ class GiroTransporteChasis(DBConnection):
         # Borro todolo que no tenga ID ASIGNADO DE GIRO
         cursor = self.conn.cursor()
         #cursor.execute("delete from giro_chasis where id_giro = ''")>
-        for chasisPatente, seguroPoliza, tara, vencCCar, seguroPolizaVence, detalle, dnt in datosParaGiro:
+        for acopladoPatente, seguroPoliza, tara,  detalle, dnt in datosParaGiro:
            
-            if not chasisPatente:
-                chasisPatente = "0"
+            if not acopladoPatente:
+                acopladoPatente = "0"
             if not seguroPoliza:
                 seguroPoliza = "0"
             if not tara:
                 tara = 0.0
-            if not vencCCar:
-                vencCCar = datetime.now().isoformat()
-
-            if not seguroPolizaVence:
-                seguroPolizaVence = datetime.now().isoformat()
-
-
             if not detalle:
                 detalle = "0"
             if not dnt:
@@ -111,12 +103,12 @@ class GiroTransporteChasis(DBConnection):
 
             params = {
                     'token': self.tokenGiro,
-                    'chasis': {
-                        'Patente': chasisPatente,
+                    'acoplado': {
+                        'Patente': acopladoPatente,
                         'Seguro': seguroPoliza,
+                        'VencCar': '1900-01-01',
+                        'VencSeg': '1900-01-01',
                         'Tara': tara,
-                        'VencCar': vencCCar,
-                        'VencSeg': seguroPolizaVence,
                         'Detalle': detalle,
                         'DNT': dnt
                     }
@@ -126,42 +118,32 @@ class GiroTransporteChasis(DBConnection):
             self.clientFarm.transport.http_post = True  # Para usar POST
             self.clientFarm.transport.http_get = False  # Para desactivar GET
             try:
-                respChasis = self.clientFarm.service.MChasisCreate(**params)
-                if respChasis.CodigoError == 0:
+                respAcoplado = self.clientFarm.service.MAcopladoCreate(**params)
+                if respAcoplado.CodigoError == 0:
 
-                    if  respChasis.Result is None:
+                    if  respAcoplado.Result is None:
                         idGiro = "no-devuelve-id"
                     else:
-                        idGiro = respChasis.Result
-                    if isinstance(vencCCar, str):
-                        vencCCar = datetime.fromisoformat(vencCCar)
-                    if isinstance(seguroPolizaVence, str):
-                        seguroPolizaVence = datetime.fromisoformat(seguroPolizaVence)
+                        idGiro = respAcoplado.Result
 
-                    # Convert to date only if they are datetime objects
-                    if isinstance(vencCCar, datetime):
-                        vencCCar = vencCCar.date()
-                    if isinstance(seguroPolizaVence, datetime):
-                        seguroPolizaVence = seguroPolizaVence.date()
-                    cursor.execute("SELECT COUNT(*) FROM giro_chasis WHERE patente = ? ", (chasisPatente,))
+                    cursor.execute("SELECT COUNT(*) FROM giro_acoplados WHERE patente = ? ", (acopladoPatente,))
                     record_exists = cursor.fetchone()[0]
                     if record_exists == 0:
                         # Record does not exist, proceed with insertion
                         sql = (
-                            "INSERT INTO giro_chasis (id_giro, patente, seguro, tara, vencCar, vencSeg, detalle, dnt, informado_sn) "
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'S')")
+                            "INSERT INTO giro_acoplados (id_giro, patente, seguro, tara, detalle, dnt, informado_sn) "
+                            "VALUES (?, ?, ?, ?, ?, ?,  'S')")
                         cursor.execute(sql, (
-                        idGiro, chasisPatente, seguroPoliza, tara, str(vencCCar), str(seguroPolizaVence), detalle, dnt))
+                        idGiro, acopladoPatente, seguroPoliza, tara,  detalle, dnt))
                         self.conn.commit()
                     else:
                         sql = (
-                            "UPDATE giro_chasis SET id_giro = ?, seguro = ?, tara = ?, vencCar = ?, vencSeg = ?, detalle = ?, dnt = ?, informado_sn = 'S' "
+                            "UPDATE giro_acoplados SET id_giro = ?, seguro = ?, tara = ?,  detalle = ?, dnt = ?, informado_sn = 'S' "
                             "WHERE patente = ?")
                         cursor.execute(sql, (
-                            idGiro, seguroPoliza, tara, str(vencCCar), str(seguroPolizaVence), detalle, dnt,
-                            chasisPatente))
+                            idGiro, seguroPoliza, tara,  detalle, dnt, acopladoPatente))
                         self.conn.commit()
-                    print(":: Modulo Transporte Chasis, patente " + str(chasisPatente) + " se informo/actualizo con éxito:: ")
+                    print(":: Modulo Transporte acoplados, patente " + str(acopladoPatente) + " se informo/actualizo con éxito:: ")
 
 
 
@@ -169,7 +151,7 @@ class GiroTransporteChasis(DBConnection):
 
                 else:
                     print(
-                        f"Error en la respuesta del servicio: {getattr(respChasis, 'MensajeError', 'MensajeError no encontrado')}")
+                        f"Error en la respuesta del servicio: {getattr(respAcoplado, 'MensajeError', 'MensajeError no encontrado')}")
             except zeep.exceptions.Fault as fault:
                 print(f"SOAP Fault: {fault}")
                 return False
@@ -185,7 +167,7 @@ class GiroTransporteChasis(DBConnection):
 
 
 
-    def consultarChasisEnGiro(self, chasisPatente):
+    def consultarEnGiro(self, acopladoPatente):
         params = {
             'token': self.tokenGiro,
             'id': "b32e590-0a4a-4133-a6dc-415b2a8"
@@ -195,19 +177,19 @@ class GiroTransporteChasis(DBConnection):
         self.clientFarm.transport.http_post = True  # Para usar POST
         self.clientFarm.transport.http_get = False  # Para desactivar GET
         try:
-            respChasis = self.clientFarm.service.MChasisReadByID(**params)
+            respChasis = self.clientFarm.service.MAcopladoReadByID(**params)
 
             if respChasis.CodigoError == 0:
 
               if respChasis["Result"] is not None:
                 data.append(respChasis["Result"])
                 #select codigo, respuesta, nroTicket, nroCarta, fechaHora, idOperacion, operacion, operador, borradoLogico, entradaSalida, idLlamada, descripcion, tipo from  giro_respuesta_ws
-                print(f":: Chasis {chasisPatente} :: La información se recuperó con éxito.")
-                print(":: Chasis {chasisPatente} :: "+str(data[0]))
+                print(f":: Patente {acopladoPatente} :: La información se recuperó con éxito.")
+                print(f":: Patente {acopladoPatente}:: "+str(data[0]))
                 print(data[0]["Patente"]+" "+str(data[0]["Seguro"])+" "+str(data[0]["Tara"])+" "+str(data[0]["VencCar"])+" "+str(data[0]["VencSeg"])+" "+data[0]["Detalle"]+" "+str(data[0]["DNT"]))
 
               else:
-                  print(f":: Chasis {chasisPatente} :: La busqueda no arrojo ningún resultado.")
+                  print(f":: Chasis {acopladoPatente} :: La busqueda no arrojo ningún resultado.")
 
 
 
@@ -268,7 +250,7 @@ class GiroTransporteChasis(DBConnection):
                         print(":: TOKEN GIRO ES VALIDO: "+tokenGiro+" :: "+str(respLoginTokenMode)+" ::")
                         self.tokenGiro = GiroAuthenticate.traerTokenGiro(self)
                         #self.consultarChasisEnGiro("AE513HE")
-                        self.tomarDatosChasisSybase()
+                        self.tomarDatosAcopladosSybase()
 
                     else:
                         # Usuario o clave de giros incorrectos
@@ -284,6 +266,6 @@ class GiroTransporteChasis(DBConnection):
 
 
 if __name__ == "__main__":
-    giros_transporte_chasis = GiroTransporteChasis()
-    giros_transporte_chasis.main()
+    giros_transporte_acoplado = GiroTransporteAcoplado()
+    giros_transporte_acoplado.main()
 

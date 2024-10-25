@@ -17,7 +17,7 @@ Desde los servidores de las plantas (online/offline) se consumen los métodos
 ObtenerRegistrosGenericos y ObtenerMlogis del wsSmartFarm para obtener los movimientos
 '''
 
-class GiroObtenerRegistros(DBConnection):
+class GirosObtenerRegistros(DBConnection):
     def __init__(self):
         super().__init__()
         self.config = []
@@ -235,6 +235,6 @@ class GiroObtenerRegistros(DBConnection):
 
 
 if __name__ == "__main__":
-    giros_reg = GiroObtenerRegistros()
+    giros_reg = GirosObtenerRegistros()
     giros_reg.main()
 
