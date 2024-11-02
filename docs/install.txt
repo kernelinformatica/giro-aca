@@ -1,3 +1,65 @@
+// VISTAS
+CREATE VIEW "DBA"."v_giro_ctacte_padron" /* view_column_name, ... */
+  as select padron_codigo,padron_apelli,padron_nombre,padron_domici,padron_domnro,padron_domdto,padron_dompis,ctacte_padron.codigo_postal,
+    padron_telcar,padron_telnro,padron_actanr,padron_ingres,codigo_docu,padron_docnro,ctacte_condiva.cod_afip as padron_ivacon,
+    ctacte_condiva.descripcion as desc_cond_iva,interes_tasa,padron_jncnro,padron_gananc,
+    padron_apinro,padron_zonnro,ctacte_padron.padron_catego,ctacte_categoria.catego_descri,padron_jubila,padron_cuit11,
+    padron_cuil11,padron_busco1,padron_busco2,padron_observa,ctacte_localidad.loc_localidad as localidad,
+    ctacte_provincia.provi_descri as provincia,ctacte_provincia.codigo_provi as provincia_codigo,
+    giro_provincias.letra_giro as codigo_provincia_giro,ctacte_categoria.padron_catego_giro as tipo_cuenta_opera_como from
+    DBA.ctacte_padron,DBA.ctacte_condiva,DBA.ctacte_categoria,DBA.ctacte_localidad,DBA.ctacte_provincia,DBA.giro_provincias where
+    ctacte_condiva.condiva = ctacte_padron.padron_ivacon and
+    ctacte_provincia.codigo_provi = giro_provincias.codigo and
+    ctacte_categoria.padron_catego = ctacte_padron.padron_catego and
+    ctacte_localidad.codigo_postal = ctacte_padron.codigo_postal and
+    ctacte_provincia.codigo_provi = ctacte_localidad.codigo_provi and
+    ctacte_padron.padron_catego in( 5,6) and
+    ctacte_padron.padron_codigo in( 51239,60064,50902,50907,50929,50930);
+    
+CREATE VIEW "DBA"."v_giro_localidades"
+  as select afipws_localidades.codigo_postal,ctacte_localidad.loc_localidad as localidad_nombre,localidad_afip as nro_onnca,
+    giro_provincias.id_giro as codigo_provincia,giro_provincias.letra_giro as id_provincia_giro,ctacte_localidad.loc_dapartam as nombre_departamento,0 as codigo_dep_afip from DBA.afipws_localidades,DBA.ctacte_localidad,DBA.giro_provincias where
+    giro_provincias.codigo = ctacte_localidad.codigo_provi and
+    ctacte_localidad.codigo_postal = afipws_localidades.codigo_postal and codigo_provincia > 0;
+CREATE VIEW "DBA"."v_giro_transportes" /* view_column_name, ... */
+  //Chasis y acoplados
+  as select cereal_camiones.tte_codigo,cereal_camiones.cam_codigo as camion_codigo,chasis_pat as chasis_patente,
+    chasis_prov as chasis_provincia,acopl_pat as acoplado_patente,acopl_prov as acoplado_provincia,
+    chofer,tipo_doc,nro_doc as cuit,cereal_camiones_adicional.seg_chasis_poliza as seguro,seg_chasis_vto from
+    DBA.cereal_camiones,DBA.cereal_camiones_adicional where habil = 1 and nro_doc > 0 and
+    cereal_camiones_adicional.cam_codigo = cereal_camiones.cam_codigo and
+    cereal_camiones_adicional.tte_codigo = cereal_camiones.tte_codigo and cereal_camiones.cam_codigo = 1 /*and cuit = 20345255606*/
+;
+CREATE VIEW "DBA"."v_listado_existencia" as
+  select cereal_romaneos.fecha_em as fecha,
+    cereal_romaneos.cereal_codigo as cereal,
+    cereal_planta.nro_oncca as planta,
+    cereal_romaneos.nro_carta as carta,
+    cereal_romaneos.nro_ticket as ticket,
+    isnull(cereal_romaneos.pad_ctacte,cereal_romaneos.rte_padron) as cuenta,
+    cereal_romaneos.kg_neto_disp as kilos from
+    DBA.cereal_romaneos,
+    DBA.cereal_planta where
+    (cereal_planta.planta_codigo = cereal_romaneos.planta_nro) and
+    (cereal_romaneos.estado = 'E') union
+  select cereal_entregas.fecha_em,
+    cereal_entregas.cereal_codigo,
+    cereal_planta.nro_oncca,
+    cereal_entregas.nro_carta,
+    cereal_entregas.nro_ticket,
+    isnull(cereal_entregas.pad_ctacte,cereal_entregas.destino_padron),
+    cereal_entregas.kg_neto_rem*-1 from
+    DBA.cereal_entregas,
+    DBA.cereal_planta where
+    (cereal_entregas.planta_nro = cereal_planta.planta_codigo) and
+    (cereal_entregas.estado = 'E');
+
+
+
+
+// TABLAS
+
+
 CREATE TABLE "DBA"."giro_accesos" (
 	"idAcceso" integer NOT NULL DEFAULT autoincrement,
 	"domain" varchar(50) NULL,
@@ -8,6 +70,67 @@ CREATE TABLE "DBA"."giro_accesos" (
 	"tokenTipo" varchar(25) NULL,
 	PRIMARY KEY ( "idAcceso" )
 );
+CREATE TABLE "DBA"."giro_acoplados" (
+	"id" integer NOT NULL DEFAULT autoincrement UNIQUE,
+	"id_giro" varchar(40) NOT NULL,
+	"patente" varchar(40) NULL,
+	"seguro" varchar(40) NULL,
+	"tara" varchar(40) NULL,
+	"venCcar" date NULL,
+	"venCseg" date NULL,
+	"detalle" varchar(100) NULL,
+	"dnt" varchar(40) NULL,
+	"informado_sn" char(1) NULL,
+	PRIMARY KEY ( "id", "id_giro" )
+);
+COMMENT ON TABLE "DBA"."giro_acoplados" IS 'Cuerpo correspondiente a los números internos y legales de los movimientos logísticos.
+Puede venir uno o más registros. ';
+COMMENT ON COLUMN "DBA"."giro_acoplados"."id" IS 'ID interno de kernel';
+COMMENT ON COLUMN "DBA"."giro_acoplados"."id_giro" IS 'ID interno de plataforma ';
+COMMENT ON COLUMN "DBA"."giro_acoplados"."patente" IS 'Patente del chasis';
+COMMENT ON COLUMN "DBA"."giro_acoplados"."seguro" IS 'Seguro del chasis';
+COMMENT ON COLUMN "DBA"."giro_acoplados"."tara" IS 'Tara del chasis';
+COMMENT ON COLUMN "DBA"."giro_acoplados"."venCseg" IS 'Fecha de vencimiento del seguro';
+COMMENT ON COLUMN "DBA"."giro_acoplados"."informado_sn" IS 'N';
+CREATE TABLE "DBA"."giro_chasis" (
+	"id" integer NOT NULL DEFAULT autoincrement UNIQUE,
+	"id_giro" varchar(40) NOT NULL,
+	"patente" varchar(40) NULL,
+	"seguro" varchar(40) NULL,
+	"tara" varchar(40) NULL,
+	"venCcar" date NULL,
+	"venCseg" date NULL,
+	"detalle" varchar(100) NULL,
+	"dnt" varchar(40) NULL,
+	"informado_sn" char(1) NULL,
+	PRIMARY KEY ( "id", "id_giro" )
+);
+COMMENT ON TABLE "DBA"."giro_chasis" IS 'Cuerpo correspondiente a los números internos y legales de los movimientos logísticos.
+Puede venir uno o más registros. ';
+COMMENT ON COLUMN "DBA"."giro_chasis"."id" IS 'ID interno de kernel';
+COMMENT ON COLUMN "DBA"."giro_chasis"."id_giro" IS 'ID interno de plataforma ';
+COMMENT ON COLUMN "DBA"."giro_chasis"."patente" IS 'Patente del chasis';
+COMMENT ON COLUMN "DBA"."giro_chasis"."seguro" IS 'Seguro del chasis';
+COMMENT ON COLUMN "DBA"."giro_chasis"."tara" IS 'Tara del chasis';
+COMMENT ON COLUMN "DBA"."giro_chasis"."venCseg" IS 'Fecha de vencimiento del seguro';
+COMMENT ON COLUMN "DBA"."giro_chasis"."informado_sn" IS 'N';
+CREATE TABLE "DBA"."giro_choferes" (
+	"id" integer NOT NULL DEFAULT autoincrement UNIQUE,
+	"id_giro" varchar(40) NOT NULL,
+	"nombre" varchar(100) NULL,
+	"codPostal" numeric(10,0) NULL,
+	"condIva" numeric(10,0) NULL,
+	"cuenta" varchar(50) NULL,
+	"domicilio" varchar(100) NULL,
+	"orden" varchar(40) NULL,
+	"provincia" varchar(40) NULL,
+	"cuit" numeric(20,0) NULL,
+	PRIMARY KEY ( "id", "id_giro" )
+);
+COMMENT ON TABLE "DBA"."giro_choferes" IS 'Cuerpo correspondiente a los números internos y legales de los movimientos logísticos.
+Puede venir uno o más registros. ';
+COMMENT ON COLUMN "DBA"."giro_choferes"."id" IS 'ID interno de kernel';
+COMMENT ON COLUMN "DBA"."giro_choferes"."id_giro" IS 'ID interno de plataforma';
 CREATE TABLE "DBA"."giro_errores_codigos" (
 	"id" integer NOT NULL,
 	"error" varchar(150) NULL,
@@ -23,19 +146,271 @@ CREATE TABLE "DBA"."giro_errores_ws" (
 	"fechaHora" "datetime" NULL,
 	"idOperacion" integer NULL,
 	"operacion" varchar(150) NULL,
-	"operador" varchar(50) NULL,
+	"operador" varchar(50) NOT NULL,
 	"borradoLogico" integer NULL DEFAULT 0,
 	"entradaSalida" varchar(3) NULL DEFAULT 'N',
 	"control" "datetime" NULL DEFAULT current timestamp,
-	PRIMARY KEY ( "idError" )
+	"planta" integer NULL,
+	"idLlamada" numeric(20,0) NULL,
+	PRIMARY KEY ( "idError", "operador" )
 );
 COMMENT ON COLUMN "DBA"."giro_errores_ws"."entradaSalida" IS 'E=entrada, S=salida,N=Ni entrada ni salida cuallquier otroerror';
+CREATE TABLE "DBA"."giro_localidades" (
+	"id" integer NOT NULL DEFAULT autoincrement,
+	"id_giro" varchar(30) NULL,
+	"nombre" varchar(200) NULL,
+	"codigo_loc_afip" varchar(40) NULL,
+	"provincia_id" varchar(40) NULL,
+	"codigo_dep_afip" numeric(4,0) NULL,
+	"codigo_prov_afip" numeric(4,0) NULL,
+	"id_prov_giro" char(1) NULL,
+	PRIMARY KEY ( "id" )
+);
+COMMENT ON COLUMN "DBA"."giro_localidades"."id" IS 'ID UNICO de Kernel';
+COMMENT ON COLUMN "DBA"."giro_localidades"."id_giro" IS 'id de localidad';
+COMMENT ON COLUMN "DBA"."giro_localidades"."nombre" IS 'nombre de localidad';
+COMMENT ON COLUMN "DBA"."giro_localidades"."codigo_loc_afip" IS 'Cod. Localidad AFIP - RG3789. Obligatorio';
+COMMENT ON COLUMN "DBA"."giro_localidades"."provincia_id" IS 'relacionado a tabla de provincias';
+COMMENT ON COLUMN "DBA"."giro_localidades"."codigo_dep_afip" IS 'Cod. Dpto AFIP - RG3789. Obligatorio ';
+COMMENT ON COLUMN "DBA"."giro_localidades"."codigo_prov_afip" IS 'Cod. Provincia AFIP - RG3789. Obligatorio';
+CREATE TABLE "DBA"."giro_mlogis" (
+	"id" integer NOT NULL DEFAULT autoincrement,
+	"id_giro" varchar(40) NOT NULL,
+	"estadoLog" varchar(40) NOT NULL,
+	"bruto" numeric(12,2) NULL,
+	"campana" varchar(40) NOT NULL,
+	"codigoEstabDest" varchar(1) NULL,
+	"codigoEstabProc" varchar(40) NULL,
+	"fecha" "datetime" NULL,
+	"kgsBruto" numeric(12,2) NOT NULL DEFAULT 0,
+	"kgsCarga" numeric(12,2) NOT NULL DEFAULT 0,
+	"kgsDescarga" numeric(12,2) NOT NULL DEFAULT 0,
+	"kgsEstimados" numeric(12,2) NOT NULL DEFAULT 0,
+	"kgsTara" numeric(12,2) NOT NULL DEFAULT 0,
+	"mSolicitud" varchar(40) NULL,
+	"nroComprobante" varchar(40) NULL,
+	"nroCupo" varchar(60) NULL,
+	"observacion" varchar(100) NOT NULL,
+	"siloDesc" varchar(40) NOT NULL,
+	"stockId" varchar(40) NOT NULL,
+	"stProceso" varchar(20) NULL,
+	"tara" varchar(20) NOT NULL,
+	"tipoComprobante" varchar(40) NULL DEFAULT '1',
+	"tipoMov" varchar(40) NULL,
+	"totMerm" numeric(12,2) NOT NULL DEFAULT 0,
+	"totNeto" numeric(12,2) NOT NULL DEFAULT 0,
+	"zacco" varchar(40) NOT NULL,
+	"variedad" varchar(300) NOT NULL,
+	"recordGuid" varchar(60) NULL,
+	"userId" numeric(30,0) NULL,
+	"feccre" "datetime" NULL,
+	"fecupd" "datetime" NULL,
+	"cdc" varchar(40) NULL,
+	"origen" varchar(40) NULL,
+	"planta" varchar(40) NULL,
+	"control" "datetime" NULL DEFAULT current timestamp,
+	PRIMARY KEY ( "id", "id_giro" )
+);
+COMMENT ON TABLE "DBA"."giro_mlogis" IS 'Estructura de registros a descargar desde la plataforma de ACA , entrada o salidas
+según la última fecha de proceso y planta; que quiere descargarse los registros, y desde aca se deben actualizar en cereal_entregas o cereal_romaneos';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."id" IS 'ID interno de kernel';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."id_giro" IS 'Id interno de la plataforma';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."estadoLog" IS 'Estado de la logística';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."bruto" IS 'Kgs Bruto Balanza';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."campana" IS 'cosecha';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."codigoEstabDest" IS 'Código establecimiento destino';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."codigoEstabProc" IS 'Código establecimiento Planta';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."fecha" IS 'fecha del cupo';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."kgsBruto" IS 'Kgs Bruto Origen';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."kgsCarga" IS 'Kgs Bruto Carga';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."kgsDescarga" IS 'Kg Descarga';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."kgsEstimados" IS 'Kg estimado de descarga';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."kgsTara" IS 'Kg tara origen';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."mSolicitud" IS 'Id de la solicitud';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."nroComprobante" IS 'Nro de CPE';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."nroCupo" IS 'Alfanumerico turno/cupo';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."observacion" IS 'Observaciones';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."siloDesc" IS 'Silo de Descarga';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."stockId" IS 'Código de grano de plataforma';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."stProceso" IS 'Código de estado en planta';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."tara" IS 'Kgs tara balanza';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."tipoComprobante" IS '1- Ingreso Normal a planta  21 - Egreso Normal/Salida de Planta  53 - Directo ';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."tipoMov" IS '0- Ingreso - 1-Egreso';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."totMerm" IS 'Kgs mermas';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."totNeto" IS 'Kgs Neto Balanza';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."zacco" IS 'id Cuenta zona comercial';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."variedad" IS 'Variedad de semilla';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."recordGuid" IS 'Identificador interno de movimiento, Relacion con interfaz';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."userId" IS 'id usuario del sistema';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."feccre" IS 'fecha de creacion del registro';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."fecupd" IS 'Última fecha de actualización';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."cdc" IS 'id cuenta Planta';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."origen" IS '0- Interfaz SIL 1- Cupo Interno';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."planta" IS 'Nro de Planta';
+COMMENT ON COLUMN "DBA"."giro_mlogis"."control" IS 'CONTROL KERNEL DE ULTIMO REGISTRO INGRESADO';
+CREATE TABLE "DBA"."giro_mlogis_cuentas" (
+	"id" integer NOT NULL DEFAULT autoincrement,
+	"id_giro" varchar(40) NOT NULL,
+	"cuenta" varchar(40) NULL,
+	"cuit" varchar(20) NULL,
+	"mLogisId" varchar(40) NULL,
+	"nombre" varchar(100) NULL,
+	"tipoCta" varchar(40) NULL,
+	"recordGuid" varchar(60) NULL,
+	"userId" numeric(30,0) NULL,
+	"feccre" "datetime" NULL,
+	"fecupd" "datetime" NULL,
+	PRIMARY KEY ( "id", "id_giro" )
+);
+COMMENT ON TABLE "DBA"."giro_mlogis_cuentas" IS 'Cuentas del Movimiento Logístico
+Cuerpo correspondiente a los intervinientes de los movimientos logísticos.
+Puede venir uno o más registros. relacionado con "giro_movimientos_logisticos"';
+COMMENT ON COLUMN "DBA"."giro_mlogis_cuentas"."id" IS 'ID interno de kernel';
+COMMENT ON COLUMN "DBA"."giro_mlogis_cuentas"."id_giro" IS 'Id interno de la plataforma';
+COMMENT ON COLUMN "DBA"."giro_mlogis_cuentas"."cuenta" IS 'id cuenta';
+COMMENT ON COLUMN "DBA"."giro_mlogis_cuentas"."cuit" IS 'cuit de la cuenta';
+COMMENT ON COLUMN "DBA"."giro_mlogis_cuentas"."mLogisId" IS 'Relación con MLOGIS';
+COMMENT ON COLUMN "DBA"."giro_mlogis_cuentas"."nombre" IS 'Nombre de la cuenta';
+COMMENT ON COLUMN "DBA"."giro_mlogis_cuentas"."tipoCta" IS 'Tipo de interviniente: 1-Remitente Comercial 2-Intermediario 3-Titular 4-Transportista 5-Entregador 6-Destinatario 7-Chofer 8-Corredor Vendedor 9-Corredor Comprador 10-Mercado a Término 11-Destino 12-Intermediario Flete 13-Rte.comercial vta.primaria 14-Rte.comercial vta.secundaria 1 15-Rte.comercial vta.secundaria 2 16-Pagador Flete';
+COMMENT ON COLUMN "DBA"."giro_mlogis_cuentas"."recordGuid" IS 'identificador interno del movimiento';
+COMMENT ON COLUMN "DBA"."giro_mlogis_cuentas"."userId" IS 'Id Usuario del sistema ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_cuentas"."feccre" IS 'Fecha de creación de registro ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_cuentas"."fecupd" IS 'ltima fecha de actualización ';
+CREATE TABLE "DBA"."giro_mlogis_flete" (
+	"id" integer NOT NULL DEFAULT autoincrement UNIQUE,
+	"id_giro" varchar(40) NOT NULL,
+	"cuentaChofer" varchar(40) NOT NULL,
+	"cuitEmpresaTransportista" varchar(40) NOT NULL,
+	"cuitTransportista" varchar(40) NULL,
+	"domicilioDestino" varchar(100) NULL,
+	"monedaId" varchar(40) NOT NULL,
+	"nombreTransportista" varchar(100) NULL,
+	"bruto" numeric(12,0) NOT NULL,
+	"ctaEmpresaTransportista" varchar(40) NULL,
+	"cuentaPagadorFlete" varchar(40) NOT NULL,
+	"cuentaProcedencia" varchar(40) NOT NULL,
+	"cuitChofer" varchar(40) NOT NULL,
+	"cupo" varchar(40) NOT NULL,
+	"destino" varchar(40) NOT NULL,
+	"fecha" "datetime" NOT NULL,
+	"fechaArribo" "datetime" NOT NULL,
+	"fechaDescarga" "datetime" NOT NULL,
+	"kgsAforo" varchar(40) NOT NULL,
+	"kmsRec" numeric(30,0) NOT NULL,
+	"localidadDest" varchar(40) NOT NULL,
+	"mLogisId" varchar(40) NULL,
+	"neto" numeric(12,0) NULL,
+	"nombrePagadorFlete" varchar(100) NULL,
+	"nombreChofer" varchar(100) NULL,
+	"pataco" varchar(40) NULL,
+	"patcha" varchar(40) NULL,
+	"provinciaDest" varchar(40) NULL,
+	"status" varchar(40) NULL,
+	"stockId" varchar(40) NOT NULL,
+	"tara" numeric(12,0) NULL,
+	"tarifa" numeric(8,2) NOT NULL,
+	"tarifaRef" numeric(8,2) NOT NULL,
+	"tipoTrans" varchar(40) NULL DEFAULT 'A',
+	"recordGuId" varchar(30) NOT NULL,
+	"userId" numeric(30,0) NULL,
+	"feccre" "datetime" NOT NULL,
+	"fecupd" "datetime" NOT NULL,
+	"tipoFlete" numeric(5,0) NOT NULL DEFAULT 0,
+	PRIMARY KEY ( "id", "id_giro" )
+);
+COMMENT ON TABLE "DBA"."giro_mlogis_flete" IS 'Cuerpo correspondiente a los datos del transporte de los movimientos logísticos.
+Puede venir uno o más registros. ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."id" IS 'ID interno de kernel';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."id_giro" IS 'ID interno de plataforma ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."cuentaChofer" IS 'ID cuenta chofer';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."cuitEmpresaTransportista" IS 'Cuit cuenta transportista';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."cuitTransportista" IS 'Cuit pagador flete';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."domicilioDestino" IS 'Domicilio Destino';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."monedaId" IS 'Moneda';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."nombreTransportista" IS 'Nombre empresa transportista';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."bruto" IS 'Kg Bruto traslado';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."ctaEmpresaTransportista" IS 'Id cuenta Transportista ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."cuentaPagadorFlete" IS 'Id cuenta pagador del Flete';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."cuentaProcedencia" IS 'Id cuenta Est. Procedencia ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."cuitChofer" IS 'Cuit chofer';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."cupo" IS 'Nro Cupo del traslado';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."destino" IS 'id cuenta destino';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."fecha" IS 'Fecha del viaje';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."fechaArribo" IS 'Fecha arribo';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."fechaDescarga" IS 'Fecha Descarga';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."kgsAforo" IS 'Kg Aforo';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."kmsRec" IS 'Kms recorridos';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."localidadDest" IS 'cod Localidad Destino';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."mLogisId" IS 'Relación con MLOGIS ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."neto" IS 'Kg Neto Traslado ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."nombrePagadorFlete" IS 'Nombre del pagador del flete ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."nombreChofer" IS 'Nombre del chofer ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."pataco" IS 'Patente Acoplado ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."patcha" IS 'Patente chasis';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."provinciaDest" IS 'Cód. Provincia Destino ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."status" IS 'Estado';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."stockId" IS 'Código de grano de plataforma ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."tara" IS 'Kg Tara Traslado';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."tarifa" IS 'Tarifa del viaje ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."tarifaRef" IS 'Tarifa de referencia';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."tipoTrans" IS 'Tipo de Transporte:  A- Automotor  F- Ferroviario  V- Vapor';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."recordGuId" IS 'Identificador interno del movimiento.';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."userId" IS 'Id Usuario del sistema ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."feccre" IS 'Fecha de creación de registro ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."fecupd" IS 'Última fecha de actualización  ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_flete"."tipoFlete" IS 'Tipo de Flete:  0- Contrata Cooperativa  1- Contrata Productor  2- No Cobra ';
+CREATE TABLE "DBA"."giro_mlogis_legal" (
+	"id" integer NOT NULL DEFAULT autoincrement UNIQUE,
+	"id_giro" varchar(40) NOT NULL,
+	"mLogisId" varchar(40) NULL,
+	"tipo" varchar(40) NULL,
+	"valor" varchar(40) NULL,
+	"recordGuId" varchar(60) NULL,
+	"userId" numeric(30,0) NULL,
+	"feccre" "datetime" NULL,
+	"fecupd" "datetime" NULL,
+	"fecvto" "datetime" NULL,
+	PRIMARY KEY ( "id", "id_giro" )
+);
+COMMENT ON TABLE "DBA"."giro_mlogis_legal" IS 'Cuerpo correspondiente a los números internos y legales de los movimientos logísticos.
+Puede venir uno o más registros. ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_legal"."id" IS 'ID interno de kernel';
+COMMENT ON COLUMN "DBA"."giro_mlogis_legal"."id_giro" IS 'ID interno de plataforma ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_legal"."mLogisId" IS 'Relación con MLOGIS';
+COMMENT ON COLUMN "DBA"."giro_mlogis_legal"."tipo" IS 'Tipo de Nro:  1-CTG   2-COT   3-CEE   4-COE   5-CAI   6-CAE   7-CAEA  8-CONT ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_legal"."valor" IS 'Valor numérico correspondiente al  tipo ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_legal"."recordGuId" IS 'Identificador interno del movimiento.';
+COMMENT ON COLUMN "DBA"."giro_mlogis_legal"."userId" IS 'Id Usuario del sistema';
+COMMENT ON COLUMN "DBA"."giro_mlogis_legal"."feccre" IS 'Fecha de creación de registro ';
+COMMENT ON COLUMN "DBA"."giro_mlogis_legal"."fecupd" IS 'Última fecha de actualización';
+COMMENT ON COLUMN "DBA"."giro_mlogis_legal"."fecvto" IS 'Fecha de vencimiento  ';
 CREATE TABLE "DBA"."giro_operaciones" (
 	"id" integer NOT NULL DEFAULT autoincrement,
 	"operacion" varchar(250) NULL,
 	"descripcion" "text" NULL,
 	PRIMARY KEY ( "id" )
 );
+CREATE TABLE "DBA"."giro_padron" (
+	"id" integer NOT NULL DEFAULT autoincrement UNIQUE,
+	"id_giro" varchar(40) NOT NULL,
+	"padron" varchar(10) NULL,
+	"nombre" varchar(40) NULL,
+	"condicion_iva" integer NULL,
+	"padron_catego" integer NULL,
+	"padron_catego_giro" integer NULL,
+	"informado" char(1) NULL,
+	PRIMARY KEY ( "id", "id_giro" )
+);
+COMMENT ON TABLE "DBA"."giro_padron" IS 'Cuerpo correspondiente a los números internos y legales de los movimientos logísticos.
+Puede venir uno o más registros. ';
+COMMENT ON COLUMN "DBA"."giro_padron"."id" IS 'ID interno de kernel';
+COMMENT ON COLUMN "DBA"."giro_padron"."id_giro" IS 'ID interno de plataforma ';
+COMMENT ON COLUMN "DBA"."giro_padron"."padron" IS 'cuenta padron de kernel';
+COMMENT ON COLUMN "DBA"."giro_padron"."nombre" IS 'nombre y apellido de la cuenta';
+COMMENT ON COLUMN "DBA"."giro_padron"."condicion_iva" IS 'condicion de iva del socio';
+COMMENT ON COLUMN "DBA"."giro_padron"."padron_catego" IS 'categoria de iva';
+COMMENT ON COLUMN "DBA"."giro_padron"."padron_catego_giro" IS 'codigo de giro campo TIPOCUENTAOPERACOMO';
+COMMENT ON COLUMN "DBA"."giro_padron"."informado" IS 'N';
 CREATE TABLE "DBA"."giro_parametros" (
 	"id" integer NOT NULL DEFAULT autoincrement UNIQUE,
 	"grupo" varchar(50) NULL,
@@ -46,6 +421,22 @@ CREATE TABLE "DBA"."giro_parametros" (
 	PRIMARY KEY ( "id" )
 );
 COMMENT ON COLUMN "DBA"."giro_parametros"."tipoValor" IS 'S=string, N=NUMERO, D=decimal';
+CREATE TABLE "DBA"."giro_provincias" (
+	"id_giro" integer NOT NULL,
+	"codigo" integer NOT NULL,
+	"nombre" varchar(40) NULL,
+	"pais" varchar(40) NULL,
+	"id" integer NULL DEFAULT autoincrement,
+	"letra_giro" char(1) NULL
+);
+COMMENT ON COLUMN "DBA"."giro_provincias"."id_giro" IS 'ID interno de plataforma';
+COMMENT ON COLUMN "DBA"."giro_provincias"."id" IS 'ID INTERNO de Kernel';
+CREATE TABLE "DBA"."giro_reg_genericos" (
+	"id" integer NOT NULL DEFAULT autoincrement,
+	PRIMARY KEY ( "id" )
+);
+COMMENT ON TABLE "DBA"."giro_reg_genericos" IS 'Estructura de registros a descargar desde la plataforma de ACA , entrada o salidas
+según la última fecha de proceso y planta; que quiere descargarse los registros, y desde aca se deben actualizar en cereal_entregas o cereal_romaneos';
 CREATE TABLE "DBA"."giro_respuesta_ws" (
 	"id" integer NOT NULL DEFAULT autoincrement,
 	"codigo" integer NULL,
@@ -59,21 +450,10 @@ CREATE TABLE "DBA"."giro_respuesta_ws" (
 	"borradoLogico" integer NULL DEFAULT 0,
 	"entradaSalida" varchar(3) NULL DEFAULT 'N',
 	"control" "datetime" NULL DEFAULT current timestamp,
+	"idLlamada" numeric(20,0) NULL,
+	"descripcion" "text" NULL,
+	"tipo" varchar(10) NULL,
 	PRIMARY KEY ( "id" )
 );
 COMMENT ON COLUMN "DBA"."giro_respuesta_ws"."entradaSalida" IS 'E=entrada, S=salida,N=Ni entrada ni salida cuallquier otroerror';
-
-
-
-# DATOS : MChasisCreate, MAcopladoCreate
-# Chasis y acoplados:
-CREATE VIEW "DBA"."v_giro_transportes" /* view_column_name, ... */
-  //Chasis y acoplados
-  as select tte_codigo,cam_codigo as camion_codigo,chasis_pat as chasis_patente,
-    chasis_prov as chasis_provincia,acopl_pat as acoplado_patente,acopl_prov as acoplado_provincia,chofer,tipo_doc,nro_doc as cuit from
-    DBA.cereal_camiones where habil = 1 and nro_doc > 0;
-
-
-
-
-Choferes: SELECT * FROM cereal_transportes
+COMMENT ON COLUMN "DBA"."giro_respuesta_ws"."tipo" IS 'ERROR=error; R = RES´PUESTA';
