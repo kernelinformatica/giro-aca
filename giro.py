@@ -1,11 +1,13 @@
 # File: main_class.py
+import random
 
 from giros_transporte_chasis import GiroTransporteChasis
 from giros_transporte_acoplado  import GiroTransporteAcoplado
 from giros_obtener_registros import  GirosObtenerRegistros
 from giros_localidades import GiroLocalidades
 from giros_padron import GirosPadron
-
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import sys
 
 class MainClass:
@@ -17,45 +19,67 @@ class MainClass:
         self.registros = GirosObtenerRegistros()
         self.localidades = GiroLocalidades()
 
-    def chasis(self, param):
-        result = self.chasis()
+    def execute_chasis(self, param):
+        result = self.chasis.main(param)
         return result
 
-    def acoplados(self, param):
-        result = self.acoplados()
+    def execute_acoplados(self, param):
+        result = self.acoplados.main(param)
         return result
 
-    def padron(self, param):
-        result = self.padron()
+    def execute_padron(self, operador, idLlamada):
+        result = self.padron.main(operador, idLlamada)
+        return result
+
+    def execute_localidades(self, operador, idLlamada):
+        result = self.localidades.main(operador, idLlamada)
         return result
 
 if __name__ == "__main__":
-
     argumentos = sys.argv
-    if len(argumentos) > 0:
+
+    operacionId = "11"
+    idLlamada = random.randint(1, 9999999999)
+    operador = "."
+    id=""
+
+    print(argumentos)
+    # if len(argumentos) > 0:
+    if len(operacionId) > 0:
         # Recibo los argumentos
-        opcion = argumentos[1]
-        idLlamada = argumentos[2]
-        operador = argumentos[3]
+        """
+       operacionId = argumentos[1]
+       idLlamada = argumentos[2]
+       operador = argumentos[3]
+
+       
+        if argumentos[4] is not None:
+            id = argumentos[4]
+        else:
+            id = ""
+         """
         # Decido que ejecuto
-        if opcion == "1":
+        if operacionId == "3":
             main = MainClass()
             result = main.chasis.main()
-        elif opcion == "2":
+        elif operacionId == "7":
             main = MainClass()
             result = main.acoplados.main()
-        elif opcion == "3":
+        elif operacionId == "15":
             main = MainClass()
-            result = main.padron.main()
-        elif opcion == "4":
+            result = main.padron.main(operador, idLlamada)
+        elif operacionId == "11":
             main = MainClass()
-            result = main.registros.main()
-        elif opcion == "5":
+            result = main.registros.main(operador, idLlamada)
+        elif operacionId == "12":
+            main = MainClass()
+            result = main.registros.main(operador, idLlamada)
+        elif operacionId == "13":
             main = MainClass()
             result = main.localidades.main(operador, idLlamada)
-        elif opcion == "6":
-            #Novimientos logisticos
+        elif operacionId == "16":
             main = MainClass()
-            #result = main.localidades.main(operador, idLlamada)
+            result = main.localidades.eliminarLocalidad(operador, idLlamada, id)
+
         else:
             print(":: Giro Base :: Opción inválida, no hay argumentos.")

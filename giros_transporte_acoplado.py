@@ -30,7 +30,7 @@ class GiroTransporteAcoplado(DBConnection):
         print(":: MODULO TRANSPORTE ACOPLADO :: Aguarde un momento por favor ...")
         global datos
         cursor = self.conn.cursor()
-        cursor.execute( "select tte_codigo, camion_codigo,chasis_patente, chasis_provincia, acoplado_patente, acoplado_provincia,chofer,tipo_doc, cuit, seguro, seg_chasis_vto from v_giro_transportes where tte_codigo between 1 and 5")
+        cursor.execute( "select tte_codigo, camion_codigo,chasis_patente, chasis_provincia, acoplado_patente, acoplado_provincia,chofer,tipo_doc, cuit, seguro, seg_chasis_vto from v_giro_transportes")
         items = cursor.fetchall()
 
         if len(items) > 0:

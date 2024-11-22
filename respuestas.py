@@ -1,16 +1,9 @@
 import pyodbc
-from datetime import datetime
-from apiclient import APIClient
 from conn.DBConnection import DBConnection as DBConnection
-import zeep
-import xml.etree.ElementTree as ET
-from requests import Session
-from zeep.transports import Transport
-import urllib3
 from datetime import datetime, timedelta
 # Suppress only the single InsecureRequestWarning from urllib3
+import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-import requests
 
 
 
@@ -48,8 +41,8 @@ class GrabaRespuestas(DBConnection):
                 cursor = self.conn.cursor()
                 sqlDel = "DELETE FROM giro_respuesta_ws WHERE operador = '" + str(
                     operador) + "' AND operacion = '" + str(operacion) + "' AND tipo= '" + str(
-                    tipo) + "' AND idLlamada = '" + str(idLlamada) + "'"
-                print(sqlDel)
+                    tipo)  + "'"
+
                 cursor.execute(sqlDel)
                 self.conn.commit()
 

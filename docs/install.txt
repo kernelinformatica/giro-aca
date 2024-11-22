@@ -15,7 +15,7 @@ CREATE VIEW "DBA"."v_giro_ctacte_padron" /* view_column_name, ... */
     ctacte_provincia.codigo_provi = ctacte_localidad.codigo_provi and
     ctacte_padron.padron_catego in( 5,6) and
     ctacte_padron.padron_codigo in( 51239,60064,50902,50907,50929,50930);
-    
+
 CREATE VIEW "DBA"."v_giro_localidades"
   as select afipws_localidades.codigo_postal,ctacte_localidad.loc_localidad as localidad_nombre,localidad_afip as nro_onnca,
     giro_provincias.id_giro as codigo_provincia,giro_provincias.letra_giro as id_provincia_giro,ctacte_localidad.loc_dapartam as nombre_departamento,0 as codigo_dep_afip from DBA.afipws_localidades,DBA.ctacte_localidad,DBA.giro_provincias where

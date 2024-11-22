@@ -2,7 +2,8 @@
 import smtplib
 from datetime import datetime
 from email.message import EmailMessage
-
+import ssl
+print(ssl.OPENSSL_VERSION)
 import zeep
 from requests import Session
 from zeep.transports import Transport
@@ -21,6 +22,7 @@ class GirosPadron(DBConnection):
         self.resp = []
         self.clientFarm = self._create_soap_client_farm()
         self.hoy = datetime.now()
+
         self.maskCuenta = "0000000"
         self.datosPadron = []
         self.datosPadronParaGiro = []
@@ -36,14 +38,14 @@ class GirosPadron(DBConnection):
                 "padron_dompis, codigo_postal, padron_telcar, padron_telnro, padron_actanr, padron_ingres, "
                 "codigo_docu, padron_docnro, padron_ivacon, desc_cond_iva, interes_tasa, padron_jncnro, padron_gananc, "
                 "padron_apinro, padron_zonnro, padron_catego, catego_descri, padron_jubila, padron_cuit11, padron_cuil11, "
-                "padron_busco1, padron_busco2, padron_observa, provincia, localidad, provincia_codigo, codigo_provincia_giro, tipo_cuenta_opera_como FROM v_giro_ctacte_padron   order by padron_codigo asc")
+                "padron_busco1, padron_busco2, padron_observa, provincia, localidad, provincia_codigo, codigo_provincia_giro, tipo_cuenta_opera_como, id_localidad_afip FROM v_giro_ctacte_padron   order by padron_codigo asc")
         else:
             cursor.execute(
                 "SELECT padron_codigo, padron_apelli, padron_nombre, padron_domici, padron_domnro, padron_domdto, "
                 "padron_dompis, codigo_postal, padron_telcar, padron_telnro, padron_actanr, padron_ingres, "
                 "codigo_docu, padron_docnro, padron_ivacon, desc_cond_iva,  interes_tasa, padron_jncnro, padron_gananc, "
                 "padron_apinro, padron_zonnro, padron_catego, catego_descri, padron_jubila, padron_cuit11, padron_cuil11, "
-                "padron_busco1, padron_busco2, padron_observa, provincia, localidad, provincia_codigo, codigo_provincia_giro, tipo_cuenta_opera_como FROM v_giro_ctacte_padron where padron_codigo =  " + str(
+                "padron_busco1, padron_busco2, padron_observa, provincia, localidad, provincia_codigo, codigo_provincia_giro, tipo_cuenta_opera_como, id_localidad_afip FROM v_giro_ctacte_padron where padron_codigo =  " + str(
                     codigo) + " order by padron asc")
         socios = cursor.fetchall()
 
@@ -52,7 +54,10 @@ class GirosPadron(DBConnection):
                 padronCodigo = a.padron_codigo
                 padronNombreApellido = a.padron_apelli + " " + a.padron_nombre
                 padronDomicilio = str(a.padron_domici) #+" "+str(a.padron_domnro)
-                padronDomicilioNro = str(a.padron_domnro)
+                if isinstance(a.padron_domnro, str) == True:
+                    padronDomicilioNro = 0
+                else:
+                    padronDomicilioNro = str(a.padron_domnro)
                 padronCodigoPostal = a.codigo_postal
                 padronProvinciaNombre = a.provincia
                 codigoProvinciaGiro = a.codigo_provincia_giro
@@ -73,6 +78,11 @@ class GirosPadron(DBConnection):
                 padronCategoriaGiro = a.tipo_cuenta_opera_como
                 padronCategoriaNombre = a.catego_descri
                 padronJubilacion = a.padron_jubila
+                idLocalidadAfip = a.id_localidad_afip
+                if idLocalidadAfip == 0:
+                    cursor.execute("SELECT nro_establecimiento FROM cereal_destinos where padron_codigo = "+str(a.padron_codigo)+" and codigo_postal ="+str(a.codigo_postal)+" ")
+                    row = cursor.fetchone()
+                    idLocalidadAfip = row[0]
                 if  a.padron_cuit11 == None:
                     padronCuit = a.padron_cuil11
                 else:
@@ -80,8 +90,9 @@ class GirosPadron(DBConnection):
                 padronObserva = a.padron_observa
                 # padronTipoCuenta: Giro define este valor como INTERNA = 1 o EXTERNA = 2
                 padronTipoCuenta = 1
-                self.datosPadronParaGiro.append(
-                    [padronCodigo, padronNombreApellido, padronCondicionIva, padronCodigoPostal, padronCuit, padronDomicilio, padronDomicilioNro, padronLocalidadNombre, "ARGENTINA", padronProvinciaNombre, padronTipoCuenta, codigoProvinciaGiro, padronCategoria, padronCategoriaGiro])
+                if idLocalidadAfip > 0:
+                 self.datosPadronParaGiro.append(
+                    [padronCodigo, padronNombreApellido, padronCondicionIva, padronCodigoPostal, padronCuit, padronDomicilio, padronDomicilioNro, padronLocalidadNombre, "ARGENTINA", padronProvinciaNombre, padronTipoCuenta, codigoProvinciaGiro, padronCategoria, padronCategoriaGiro, idLocalidadAfip])
 
 
 
@@ -105,21 +116,15 @@ class GirosPadron(DBConnection):
         cursor = self.conn.cursor()
         p = 0
         respuestas.GrabaRespuestas.limpiarDatos(self, self.operador, self.idLlamada, operacion, "ERROR")
-        respuestas.GrabaRespuestas.limpiarDatos(self, self.operador, self.idLlamada, operacion, "OK")
+        respuestas.GrabaRespuestas.limpiarDatos(self, self.operador, self.idLlamada, "MaestroCuentasUpdate", "ERROR")
 
-        for padronCodigo, padronNombreApellido, padronCondicionIva, padronCodigoPostal, padronCuit, padronDomicilio, padronDomicilioNro, padronLocalidadNombre, pais, padronProvinciaNombre, padronTipoCuenta, codigoProvinciaGiro, padronCategoria, padronCategoriaGiro  in padronParaGiro:
-            localidad = cursor.execute("SELECT nro_oncca FROM ctacte_localidad where codigo_postal = "+str(padronCodigoPostal)+"")
-            rowLocalidad = cursor.fetchone()[0]
+        for padronCodigo, padronNombreApellido, padronCondicionIva, padronCodigoPostal, padronCuit, padronDomicilio, padronDomicilioNro, padronLocalidadNombre, pais, padronProvinciaNombre, padronTipoCuenta, codigoProvinciaGiro, padronCategoria, padronCategoriaGiro, idLocalidadAfip  in padronParaGiro:
+            localidad = cursor.execute("SELECT id_giro FROM giro_localidades where codigo_loc_afip = "+str(idLocalidadAfip)+"")
+            rowLocalidad = localidad.fetchone()[0]
             if rowLocalidad is not None and rowLocalidad != 0:
                 padronLocalidadId = rowLocalidad
             else:
-                localidad = cursor.execute(
-                    "SELECT localidad_afip FROM afipws_localidades where codigo_postal = " + str(padronCodigoPostal))
-                rowLocalidad = cursor.fetchone()
-                if rowLocalidad is not None and rowLocalidad[0] != 0:
-                    padronLocalidadId = rowLocalidad[0]
-                else:
-                    padronLocalidadId = 0
+                padronLocalidadId =0
 
             params = {
                 'token':  self.tokenGiro,
@@ -146,11 +151,11 @@ class GirosPadron(DBConnection):
                                 'CodAbrev': padronCodigoPostal,
                                 'Domicilio': padronDomicilio,
                                 'NroDomicilio': padronDomicilioNro,
-                                'LocalidadID': padronLocalidadId,
+                                'LocalidadID': str(padronLocalidadId),
                                 'Provincia': codigoProvinciaGiro,
                                 'Pais': pais,
                                 'NroPlanta': 0,
-                                'PTAONCCA': 0,
+                                'PTAONCCA': idLocalidadAfip,
                                 'TipoCuenta': padronCategoriaGiro,
                                 'TipoPlanta': ''
                             },
@@ -166,51 +171,56 @@ class GirosPadron(DBConnection):
             try:
                 cursor.execute("SELECT COUNT(*) FROM giro_padron WHERE padron = " + str(padronCodigo))
                 record_exists = cursor.fetchone()[0]
+                # resp = 0
                 resp = self.clientFarm.service.MaestroCuentasCreate(**params)
+                err = ""
                 if record_exists == 0:
                     # No existe el registro en la tabla giro_padron
                     if resp.CodigoError == 0:
-                        idGiro = "no-devuelve-id"
+                        idGiro = padronCodigo
                         sql = """
                         INSERT INTO "DBA"."giro_padron" (id_giro, padron, nombre, condicion_iva, padron_catego, padron_catego_giro, informado)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                         """
-                        values = (idGiro, padronCodigo, padronNombreApellido, padronCondicionIva, padronCategoria, padronCategoriaGiro, 1)
+                        values = (idGiro, padronCodigo, padronNombreApellido, padronCondicionIva, padronCategoria,
+                                  padronCategoriaGiro, 1)
                         cursor.execute(sql, values)
                         self.conn.commit()
 
-                        msg = padronNombreApellido + ": " + str(padronCodigo) + " :: La cuenta se informó con éxito"
-                        respuestas.GrabaRespuestas().grabarRespuesta(error.Code, msg, 0, 0, idTipoOperacion, operacion,self.operador, "N", self.idLlamada, "", "OK")
+                        msg = padronNombreApellido + ": " + str(padronCodigo)+" (Cuit: "+str(padronCuit)+") :: La cuenta se informó con éxito"
+                        respuestas.GrabaRespuestas().grabarRespuesta("0", msg, 0, 0, idTipoOperacion, operacion,
+                                                                     self.operador, "N", self.idLlamada, "", "OK")
                         print(":: MODULO PADRON " + str(msg) + " :: INFORMADO ::")
 
                     else:
                         ## VER ACA VER SUPUESTOS TRATAMIENTO DE ERRORES ETC
-                        print(":: MODULO PADRON " + str(padronCodigo) + ": " + padronNombreApellido + " :: ACTUALIZA ::")
+                        print(
+                            ":: MODULO PADRON " + str(padronCodigo) + ": " + padronNombreApellido + " :: ACTUALIZA ::")
                 else:
-                   for error in resp.Errors['CodeError']:
-                        msg = padronNombreApellido +": "+str(padronCodigo)+ " :: Error codigo: "+str(error.Code)+" - "+str(error.Message.replace("'", '"'))
-                        respuestas.GrabaRespuestas().grabarRespuesta(error.Code, msg, 0, 0, idTipoOperacion, operacion, self.operador, "N", self.idLlamada,"", "ERROR")
-                        print(":: MODULO PADRON " + str(padronCodigo) + ": " + padronNombreApellido + " :: Error codigo: "+str(error.Code)+" - "+str(error.Message)+" ::")
-
-
-
-
-
+                    for err in resp.Errors['CodeError']:
+                        msg = padronNombreApellido + ": " + str(padronCodigo) + " :: Error codigo: " + str(
+                            err['Code']) + " - " + str(err['Message'].replace("'", '"'))
+                        respuestas.GrabaRespuestas().grabarRespuesta(str(err['Code']), msg, 0, 0, idTipoOperacion,
+                                                                     operacion, self.operador, "N", self.idLlamada, "",
+                                                                     "ERROR")
+                        print(":: MODULO PADRON " + str(
+                            padronCodigo) + ": " + padronNombreApellido +"(Cuit: "+str(padronCuit)+ ") :: Error codigo: " + str(
+                            err['Code']) + " - " + str(err['Message']) + " ::")
 
             except zeep.exceptions.Fault as fault:
                 if "Session Not Found" in str(fault):
                     print(":: ERROR :: Session Not Found. Please re-authenticate.")
                     # Handle re-authentication or prompt for a new token
                 else:
-                    print(f":: ERROR :: {fault}")
+                    print(f":: 1 ERROR :: {fault}")
             except Exception as e:
-                print(f":: ERROR :: {e}")
+                print(f":: 2 ERROR :: {e}")
 
 
 
 
     def main(self, operador, idLlamada=0):
-        self.operador = operador
+        self.operador = str(operador)
         self.idLlamada = idLlamada
         #import conn.sybase
         print(":: VALIDANDO TOKEN DE ACCESO :: ")
@@ -272,6 +282,7 @@ class GirosPadron(DBConnection):
         item = cursor.fetchall()
         for urlFarm in item[0]:
             url_login = urlFarm
+            print(":: urlFarm: ---------> " + url_login)
         session = Session()
         session.verify = False  # Disable SSL certificate verification
         transport = Transport(session=session)

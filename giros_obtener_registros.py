@@ -36,9 +36,11 @@ class GirosObtenerRegistros(DBConnection):
         print("::: obtenerRegistrosGenericos ::: ")
         self.tokenGiro = GiroAuthenticate.traerTokenGiro(self)
         fechaHoy = self.hoy.strftime('%d/%m/%Y %H:%M:%S')
-        operacionNombre = "ObtenerRegistrosGenericos"
-        operacionCodigo = "11"
+
+        idTipoOperacion = "11"
+        operacion = "ObtenerRegistrosGenericos"
         operador = self.operador
+        respuestas.GrabaRespuestas.limpiarDatos(self, self.operador, self.idLlamada, operacion, "ERROR")
         condicionesFiltro = [
             "FECUPD > CONVERT(DATETIME, '" + fechaHoy + "', 103)",
             "AND PLANTA = '" + self.codigPlantaAfip + "' ORDER BY FECUPD ASC"
@@ -53,8 +55,12 @@ class GirosObtenerRegistros(DBConnection):
         self.clientFarm.transport.http_get = False  # Para desactivar GET
         respRegGen = self.clientFarm.service.ObtenerRegistrosGenerico(**params)
         if respRegGen['CodigoError'] == 0 and respRegGen['ResultXML'] == None:
-            resp = ":: ObtenerRegistrosGenericos :: No hay registros que procesar"
-            print(resp)
+            msg = "ObtenerRegistrosGenericos :: no hay registros para procesar."
+            respuestas.GrabaRespuestas().grabarRespuesta(str(respRegGen['CodigoError']), msg, 0, 0, idTipoOperacion,
+                                                        operacion, self.operador, "N", self.idLlamada, "",
+                                                        "ERROR")
+
+            print(msg)
         elif respRegGen['CodigoError'] == 0 and respRegGen['ResultXML'] != None:
             msg = ":: ObtenerRegistrosGenericos :: tiene registros para procesar"
             print(msg)
@@ -68,7 +74,7 @@ class GirosObtenerRegistros(DBConnection):
             err = errores.GrabaErrores()
             codigoError =respRegGen['CodigoError']
             descripcionError = respRegGen['ResultXML']
-            err.grabarError(codigoError, descripcionError, 0, 0, self.hoy, operacionCodigo, operacionNombre, operador, 'N', self.codigPlantaAfip, self.idLlamada)
+            err.grabarError(codigoError, descripcionError, 0, 0, self.hoy, idTipoOperacion, operacion, operador, 'N', self.codigPlantaAfip, self.idLlamada)
             return False
 
 
@@ -79,8 +85,8 @@ class GirosObtenerRegistros(DBConnection):
     def obtenerMlogis(self, idCampanaSmart):
         self.tokenGiro = GiroAuthenticate.traerTokenGiro(self)
         fechaHoy = self.hoy.strftime('%Y-%m-%d %H:%M:%S')
-        operacionNombre = "ObtenerMlogis"
-        operacionCodigo = "12"
+        idTipoOperacion = "12"
+        operacion = "ObtenerMlogis"
         operador = self.operador
         params = {
             'Token': self.tokenGiro,
@@ -96,7 +102,7 @@ class GirosObtenerRegistros(DBConnection):
         if respMlogis['CodigoError'] == 0 :
             # si la cantidad de registros es mayor a 0 tiene registros sino no tiene registros en posicion
             mLogisDatos.append(respMlogis['ResultXML'])
-            perist = self.persistirMLogis(mLogisDatos, operacionCodigo, operacionNombre)
+            perist = self.persistirMLogis(mLogisDatos, idTipoOperacion, operacion)
             if perist:
                 msg = ":: ObtenerMlogis :: Registros procesados correctamente"
                 return msg
@@ -168,20 +174,10 @@ class GirosObtenerRegistros(DBConnection):
 
 
 
-    def main(self):
-        parser = argparse.ArgumentParser(description='Procesa Argumentos.')
-        parser.add_argument('operador', type=str, help='Requiere indicar el operador')
-        parser.add_argument('idLlamada', type=str, help='Requiere indicar el id de Llamada')
-        args = parser.parse_args()
-        if args.operador == None:
-            self.operador = "."
-        else:
-            self.operador = args.operador
+    def main(self, operador, idLlamada=0):
+        self.operador = str(operador)
+        self.idLlamada = idLlamada
 
-        if args.idLlamada == None:
-            self.idLlamada = "0"
-        else:
-            self.idLlamada = args.idLlamada
 
         print(":: VALIDANDO TOKEN DE ACCESO :: ")
         cursor = self.conn.cursor()
@@ -236,5 +232,5 @@ class GirosObtenerRegistros(DBConnection):
 
 if __name__ == "__main__":
     giros_reg = GirosObtenerRegistros()
-    giros_reg.main()
+    giros_reg.main("DBA", 23476226)
 

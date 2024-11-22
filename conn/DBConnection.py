@@ -15,6 +15,7 @@ class DBConnection:
     def create_connection(self):
         config = configparser.ConfigParser()
         config.read('config.ini')
+
         self.serv = config['CONEXION']['serv']
         self.usr = config['CONEXION']['usr']
         self.passwd = config['CONEXION']['passwd']

@@ -30,7 +30,7 @@ class GiroTransporteChoferes(DBConnection):
         print(":: MODULO TRANSPORTE ACOPLADO :: Aguarde un momento por favor ...")
         global datos
         cursor = self.conn.cursor()
-        cursor.execute( "select chofer, cuit from v_giro_transportes where tte_codigo between 1 and 7")
+        cursor.execute( "select chofer, cuit from v_giro_transportes")
         items = cursor.fetchall()
         if len(items) > 0:
             for item in items:
@@ -39,15 +39,19 @@ class GiroTransporteChoferes(DBConnection):
                 cuit = item.cuit
                 sql ="select  padron_ivacon, ctacte_padron.codigo_postal, padron_domici+' '+padron_domnro as domicilio, ctacte_localidad.codigo_provi as provincia from ctacte_padron, ctacte_localidad where (padron_cuit11 = "+str(cuit)+" or padron_cuil11 = "+str(cuit)+") and ctacte_padron.codigo_postal = ctacte_localidad.codigo_postal"
                 cursor.execute(sql)
-                print()
+                ivaCondicion =0
+                codigoPostal=0
+                domicilio = ""
+                codigoProvincia = 0
                 it = cursor.fetchall()
                 if len(it) > 0:
                     for ite in it:
 
-                        ivaCondicion = ite.padron_ivacon
-                        codigoPostal = ite.codigo_postal
-                        domicilio = ite.domicilio
-                        codigoProvincia =ite.provincia
+                        ivaCondicion = ite.padron_ivacon if ite.padron_ivacon is not None else 0
+                        codigoPostal = ite.codigo_postal if ite.codigo_postal is not None else 0
+                        domicilio = ite.domicilio if ite.domicilio is not None else 0
+                        codigoProvincia = ite.provincia if ite.provincia is not None else 0
+
 
                 self.datosParaGiro.append([cuit, chofer, ivaCondicion, codigoProvincia, codigoPostal, domicilio])
 

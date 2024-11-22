@@ -186,7 +186,7 @@ class GiroAuthenticate(DBConnection):
                     login_date = root.find('LoginDate').text
                     domain = root.find('Domains/Domain').text
 
-                    fechaLogin = datetime.fromisoformat(login_date[:-6])
+                    fechaLogin = datetime.fromisoformat(login_date[:26])
                     fechaLogin_str = fechaLogin.strftime('%Y-%m-%d %H:%M:%S')
                     fechaActual = datetime.now()
                     # Definir un timedelta con las horas que quieres sumar

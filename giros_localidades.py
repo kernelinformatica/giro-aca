@@ -31,11 +31,11 @@ class GiroLocalidades(DBConnection):
         print(":: MODULO PROVINCIAS  :: Aguarde un momento por favor ...")
         global datos
         cursor = self.conn.cursor()
-        cursor.execute( "SELECT codigo_postal, localidad_nombre,nro_onnca, codigo_provincia, nombre_departamento, codigo_dep_afip, id_provincia_giro FROM v_giro_localidades")
+        cursor.execute( "SELECT codigo_postal, localidad_nombre,nro_onnca, codigo_provincia, nombre_departamento, codigo_dep_afip, id_provincia_giro,id_localidad FROM v_giro_localidades")
         items = cursor.fetchall()
         if len(items) > 0:
             for item in items:
-
+                id_localidad = item.id_localidad
                 codigo = item.codigo_postal
                 nombre = item.localidad_nombre
                 loc_nro_onnca = item.nro_onnca
@@ -44,7 +44,7 @@ class GiroLocalidades(DBConnection):
                 codigo_dep_afip = item.codigo_dep_afip
                 id_provincia_giro = item.id_provincia_giro
 
-                self.datosParaGiro.append([codigo, nombre, loc_nro_onnca, provincia, nombre_departamento, codigo_dep_afip, id_provincia_giro])
+                self.datosParaGiro.append([codigo, nombre, loc_nro_onnca, provincia, nombre_departamento, codigo_dep_afip, id_provincia_giro, id_localidad])
 
             self.persistirEnGiro(self.datosParaGiro)
 
@@ -72,15 +72,83 @@ class GiroLocalidades(DBConnection):
         return zeep.Client(wsdl=url, transport=transport)
 
 
+    def eliminarLocalidad(self, operador, idLlamada=0, idLocalidad=""):
+        idTipoOperacion = 16
+        operacion = "MLocalidadRemove"
+        if idLocalidad > 0 or idLocalidad != "":
+            self.clientFarm.transport.http_post = True
+            self.clientFarm.transport.http_post = True  # Para usar POST
+            self.clientFarm.transport.http_get = False  # Para desactivar GET
+            cursor = self.conn.cursor()
+            try:
+
+                cursor.execute("SELECT COUNT(*) FROM giro_localidades WHERE id_giro = ? ", (idLocalidad,))
+                record_exists = cursor.fetchone()[0]
+                i = 0
+
+                if record_exists > 0:
+
+                    try:
+                        params = {
+                            'token': self.tokenGiro,
+                            'localidad': {
+                                'LocalidadID': idLocalidad,
+
+                            }
+                        }
+                        i = i + 1
+                        resp = self.clientFarm.service.MLocalidadCreate(**params)
+                        if resp.CodigoError == 0:
+                            sql = ("DELETE FROM giro_localidades WHERE id_giro = ?", (idLocalidad,))
+                            cursor.execute(sql)
+                            self.conn.commit()
+                            print(":: Modulo Localidades :: Eliminar localidad: " + str(idLocalidad) + ", se elimino con éxito:: ")
+                        elif resp.CodigoError == 500:
+                            for error in resp.Errors['CodeError']:
+                                print(":: Localidades Error (" + str(resp.CodigoError) + "): " + str(
+                                    idLocalidad) + ": " + error.Message)
+                        elif resp.CodigoError == 401:
+                            for error in resp.Errors['CodeError']:
+                                print(":: Localidades Error (" + str(resp.CodigoError) + "): " + str(
+                                    idLocalidad) + ": " + error.Message)
+
+
+
+                    except zeep.exceptions.Fault as fault:
+                        print(f"SOAP Fault: {fault}")
+                    except Exception as e:
+                        print(f"Unexpected error: {e}")
+
+                elif record_exists == 0:
+                    idTipoOperacion = 17
+                    operacion = "MLocalidadRemove"
+                    tipo = "OK"
+                    msg = ":: Eliminar Localidades: " + str(idLocalidad) + " (" + str(operador) + ")"
+                    respuestas.GrabaRespuestas().grabarRespuesta(401, msg, 0, 0, idTipoOperacion, operacion, operador, "N",
+                                                                 idLlamada, "Metodo no implementado porque no existe", tipo)
+                    print(msg)
+            except Exception as e:
+                print(f":: Ocurrió un error inesperado, intentar borrar la localidad en giro: {e}")
+                #
+
+        else:
+            msg= ":: Error: Tipo operacion: "+str(idTipoOperacion)+": "+str(operacion)+"No se recibió el ID de la localidad a eliminar."
+            print(msg)
+            return msg
 
 
     def persistirEnGiro(self, datosParaGiro):
         # Borro todolo que no tenga ID ASIGNADO DE GIRO
         cursor = self.conn.cursor()
         i =0
+        idTipoOperacion = 13
+        operacion = "MLocalidadCreate"
+        respuestas.GrabaRespuestas.limpiarDatos(self, self.operador, self.idLlamada, operacion, "ERROR")
+        respuestas.GrabaRespuestas.limpiarDatos(self, self.operador, self.idLlamada, "MLocalidadUpdate", "ERROR")
+        respuestas.GrabaRespuestas.limpiarDatos(self, self.operador, self.idLlamada, operacion, "OK")
 
 
-        for codigo, nombre, loc_nro_onnca, provincia, nombre_departamento, codigo_dep_afip, id_provincia_giro in datosParaGiro:
+        for codigo, nombre, loc_nro_onnca, provincia, nombre_departamento, codigo_dep_afip, id_provincia_giro, id_localidad in datosParaGiro:
 
 
 
@@ -106,18 +174,17 @@ class GiroLocalidades(DBConnection):
 
 
                 if record_exists == 0:
-                    idTipoOperacion = 13
-                    operacion = "MLocalidadCreate"
+
                     try:
                         resp = self.clientFarm.service.MLocalidadCreate(**params)
                         if resp.CodigoError == 0:
-
-                            if resp.Result is None:
-                                idGiro = "no-devuelve-id"
+                            # si alguna vez giro me devuelve el id del registro creado, lo guardo en la base de datos y se lo asigno a la variable idGiro
+                            idGiro = None
+                            if idGiro is None :
+                                idGiro = "no-devuelve-id-de-retorno"
                             else:
                                 idGiro = resp.Result
-                            sql = (
-                                "INSERT INTO giro_localidades (id_giro,  nombre, codigo_loc_afip, provincia_id, id_prov_giro, codigo_dep_afip, codigo_prov_afip) "
+                            sql = ("INSERT INTO giro_localidades (id_giro,  nombre, codigo_loc_afip, provincia_id, id_prov_giro, codigo_dep_afip, codigo_prov_afip) "
                                 "VALUES (?, ?, ?, ?, ?, ?,?)")
                             cursor.execute(sql, ( idGiro, nombre, loc_nro_onnca, provincia, id_provincia_giro, codigo_dep_afip,
                                            provincia))
@@ -126,8 +193,9 @@ class GiroLocalidades(DBConnection):
                                 nombre) + " se informo con éxito:: ")
                         elif resp.CodigoError == 500:
                             for error in resp.Errors['CodeError']:
-                                if resp.Result is None:
-                                    idGiro = "no-devuelve-id"
+                                idGiro = None
+                                if idGiro is None:
+                                    idGiro = "no-devuelve-id-de-retorno"
                                 else:
                                     idGiro = resp.Result
                                 sql = (
@@ -149,20 +217,19 @@ class GiroLocalidades(DBConnection):
 
                     except zeep.exceptions.Fault as fault:
                         print(f"SOAP Fault: {fault}")
-                    except Exception as e:
-                        print(f"Unexpected error: {e}")
+                    #except Exception as e:
+                        #print(f"Unexpected error: {e}")
 
 
                 elif record_exists > 0:
                     idTipoOperacion = 14
                     operacion = "MLocalidadUpdate"
                     tipo = "ERROR"
-                    msg=":: Actualizar Localidades (Metodo con Giro sin inplementar): " + str(loc_nro_onnca) + ": " + str(nombre) + " (" + str(provincia) + ")"
+                    msg=":: Localidad ya registrada en GIRO, método "+str(operacion)+" con Giro sin inplementar: " + str(loc_nro_onnca) + ": " + str(nombre) + " (" + str(provincia) + ")"
                     print(msg)
                     respuestas.GrabaRespuestas().grabarRespuesta(401, msg, 0, 0, idTipoOperacion, operacion, self.operador, "N", self.idLlamada, "Metodo no implementado porque no existe", tipo)
-                    '''
-                    Actualiza
-                                        try:
+                    """
+                     try:
                         resp = self.clientFarm.service.MLocalidadUpdate(**params)
                         if resp.CodigoError == 0:
 
@@ -180,8 +247,7 @@ class GiroLocalidades(DBConnection):
                                 "codigo_prov_afip = ? "
                                 "WHERE id_giro = ?"
                             )
-                            cursor.execute(sql, (
-                            nombre, loc_nro_onnca, provincia, id_provincia_giro, codigo_dep_afip, provincia, idGiro))
+                            cursor.execute(sql, (nombre, loc_nro_onnca, provincia, id_provincia_giro, codigo_dep_afip, provincia, idGiro), id_localidad,)
                             self.conn.commit()
                             print(":: Modulo Provincias  " + str(nombre) + ": " + str(nombre) + " se actualizo con éxito:: ")
                         elif resp.CodigoError == 500:
@@ -203,7 +269,7 @@ class GiroLocalidades(DBConnection):
                             for error in resp.Errors['CodeError']:
                                 print(":: Localidades Error ("+str(resp.CodigoError)+"): "+str(loc_nro_onnca)+": "+str(nombre)+" ("+str(provincia)+"): "+error.Message)
 
-
+                    
 
 
 
@@ -211,16 +277,7 @@ class GiroLocalidades(DBConnection):
                         print(f"SOAP Fault: {fault}")
                     except Exception as e:
                         print(f"Unexpected error: {e}")
-                    '''
-
-
-
-
-
-
-
-
-
+                    """
 
             except zeep.exceptions.Fault as fault:
                 print(f"SOAP Fault: {fault}")
